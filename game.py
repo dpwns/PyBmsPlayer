@@ -67,8 +67,16 @@ class Bundle:
 class BMS_Parser:
     file_dir = ''
     folder_dir = ''
+
     def __init__(self, file_directory):
         self.file_dir = file_directory
+        self.folder_dir = self.file_dir
+        while True:
+            if self.folder_dir[-1] == '\\':
+                self.folder_dir = self.folder_dir[0:-1]
+                break
+            else:
+                self.folder_dir = self.folder_dir[0:-1]
 
     def Set_file_directory(self, directory):
         self.file_dir = directory
@@ -93,8 +101,9 @@ class BMS_Parser:
         ['Rank', ''],
         ['Total', '']]
         temp_string = File.readline()
-        while temp_string != None and temp_string.find('MAIN DATA FIELD') == -1:
+        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
             temp_string = temp_string.replace('\n', '')
+            if not line: break
             if temp_string.find('#PLAYER') != -1:
                 Header_data[0][1] = temp_string.replace("#PLAYER ", "")
             elif temp_string.find('#GENRE') != -1:
@@ -120,14 +129,58 @@ class BMS_Parser:
         File = open(self.file_dir, 'r')
         temp_string = File.readline()
         Wav_data = list()
-        while temp_string != None and temp_string.find('MAIN DATA FIELD') == -1:
+        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
             temp_string = temp_string.replace('\n', '')
+            if not temp_string: break
             if temp_string.find('#WAV') != -1:
                 temp_string = temp_string.replace("#WAV", "")
                 Wav_data.append([temp_string[0:2], temp_string[3:]])
             temp_string = File.readline()
         print(Wav_data)
+    
+    def Get_note_data(self):
+        if (self.file_dir == ''): return
+        track = list()
+        File = open(self.file_dir, 'r')
+        temp_string = File.readline()
+        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
+            temp_string = File.readline()
+            if not temp_string: break
+
+        while temp_string != '':
+            temp_string = File.readline()
+            if not temp_string: break
+            if temp_string.find('#') == -1:
+                continue
+            temp_string = temp_string.replace('\n', '')
+            track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
+
+        return track
+
+    def Get_note_data_bar(self, bar_number):
+        if (self.file_dir == ''): return
+        track = list()
+        File = open(self.file_dir, 'r')
+        temp_string = File.readline()
+        bar_number = str(bar_number)
+
+        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
+            temp_string = File.readline()
+            if not temp_string: break
+
+        while temp_string != '':
+            temp_string = File.readline()
+            if not temp_string: break
+            if temp_string.find('#') == -1:
+                continue
+
+            if bar_number == temp_string[1:4]:
+                temp_string = temp_string.replace('\n', '')
+                track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
+
+        return track
 
 temp = Bundle.Get_script_file_directory('004. Applesoda - JoHwa')
-p = BMS_Parser(temp[1])
-p.Get_WAV()
+print(temp[0])
+p = BMS_Parser(temp[0])
+p.Get_note_data()
