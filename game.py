@@ -1,7 +1,10 @@
 import os
 import pygame
-import sys
 
+Frame = 60
+Height = 360
+Width = 640
+Text_size1 = 20
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
@@ -234,8 +237,10 @@ def Screen_init(width, height, caption):
     pygame.display.set_caption(caption)
     return Screen
 
+def Resolution_calculate(value):
+    return int(float(value) * (Width / 1280))
+
 def Song_select():
-    clock = pygame.time.Clock()
     select_song = ''
     select_song_index = 0
     max_song_index = 0
@@ -246,7 +251,6 @@ def Song_select():
     max_song_index = len(song_list)
     is_file_select = False
     while True:
-        clock.tick(60)
         screen.fill(BLACK)
         if not is_file_select:
             for event in pygame.event.get():
@@ -268,48 +272,38 @@ def Song_select():
                         select_song_file_index = 0
                         is_file_select = True
             if max_song_index == 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
+                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
                 text = fontObj.render('Empty', True, WHITE)
-                screen.blit(text, (0, 10))
+                screen.blit(text, (0, Resolution_calculate(10)))
                 pygame.display.flip()
                 continue
-            
-            if select_song_index - 3 >= 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_list[select_song_index - 3], True, WHITE)
-                screen.blit(text, (0, 10))
-            if select_song_index - 2 >= 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_list[select_song_index - 2], True, WHITE)
-                screen.blit(text, (0, 40))
-            if select_song_index - 1 >= 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_list[select_song_index - 1], True, WHITE)
-                screen.blit(text, (0, 70))
 
-            fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 30)
+            List_num = 5
+            max_list_num = 5
+            while List_num > 0:
+                if select_song_index - List_num >= 0:
+                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                    text = fontObj.render(song_list[select_song_index - List_num], True, WHITE)
+                    screen.blit(text, (0, Resolution_calculate(10 + (max_list_num - List_num) * 30)))
+                List_num = List_num - 1
+
+            fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(30))
             text = fontObj.render(song_list[select_song_index], True, WHITE)
-            screen.blit(text, (10, 120))
+            screen.blit(text, (Resolution_calculate(10), Resolution_calculate(10 + max_list_num * 30 + 40)))
 
-            if select_song_index + 1 < max_song_index:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_list[select_song_index + 1], True, WHITE)
-                screen.blit(text, (0, 170))
-            if select_song_index + 2 < max_song_index:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_list[select_song_index + 2], True, WHITE)
-                screen.blit(text, (0, 200))
-            if select_song_index + 3 < max_song_index:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_list[select_song_index + 3], True, WHITE)
-                screen.blit(text, (0, 230))
+            while List_num < max_list_num:
+                List_num = List_num + 1
+                if select_song_index + List_num < max_song_index:
+                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                    text = fontObj.render(song_list[select_song_index + List_num], True, WHITE)
+                    screen.blit(text, (0, Resolution_calculate(90 + (max_list_num + List_num) * 30)))
         else:
             song_file_list = Bundle.Get_script_file(song_list[select_song_index])
             max_song_file_index = len(song_file_list)
             if max_song_file_index == 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
+                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
                 text = fontObj.render('Empty', True, WHITE)
-                screen.blit(text, (0, 10))
+                screen.blit(text, (0, Resolution_calculate(10)))
                 pygame.display.flip()
                 continue
             for event in pygame.event.get():
@@ -332,42 +326,34 @@ def Song_select():
                     elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
                         if max_song_file_index > 0:
                             return Bundle.SongList_name(song_list[select_song_index]) + '\\' + song_file_list[select_song_file_index]
-            if select_song_file_index - 3 >= 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_file_list[select_song_file_index - 3], True, WHITE)
-                screen.blit(text, (0, 10))
-            if select_song_file_index - 2 >= 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_file_list[select_song_file_index - 2], True, WHITE)
-                screen.blit(text, (0, 40))
-            if select_song_file_index - 1 >= 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_file_list[select_song_file_index - 1], True, WHITE)
-                screen.blit(text, (0, 70))
 
-            fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 30)
+            List_num = 5
+            max_list_num = 5
+            while List_num > 0:
+                if select_song_file_index - List_num >= 0:
+                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                    text = fontObj.render(song_file_list[select_song_file_index - List_num], True, WHITE)
+                    screen.blit(text, (0, Resolution_calculate(10 + (max_list_num - List_num) * 30)))
+                List_num = List_num - 1
+
+            fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(30))
             text = fontObj.render(song_file_list[select_song_file_index], True, WHITE)
-            screen.blit(text, (10, 120))
+            screen.blit(text, (Resolution_calculate(10), Resolution_calculate(10 + max_list_num * 30 + 40)))
 
-            if select_song_file_index + 1 < max_song_file_index:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_file_list[select_song_file_index + 1], True, WHITE)
-                screen.blit(text, (0, 170))
-            if select_song_file_index + 2 < max_song_file_index:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_file_list[select_song_file_index + 2], True, WHITE)
-                screen.blit(text, (0, 200))
-            if select_song_file_index + 3 < max_song_file_index:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
-                text = fontObj.render(song_file_list[select_song_file_index + 3], True, WHITE)
-                screen.blit(text, (0, 230))
+            while List_num < max_list_num:
+                List_num = List_num + 1
+                if select_song_file_index + List_num < max_song_file_index:
+                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                    text = fontObj.render(song_file_list[select_song_file_index + List_num], True, WHITE)
+                    screen.blit(text, (0, Resolution_calculate(90 + (max_list_num + List_num) * 30)))
         pygame.display.flip()
     return
 
 pygame.init()
-screen = Screen_init(1280, 720, 'PPAP')
+screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
-
+clock = pygame.time.Clock()
+clock.tick(Frame)
 p = BMS_Parser('')
 a = Song_select()
 c = 0
@@ -377,9 +363,9 @@ if a != '':
     p.Set_file_directory(a)
     b = p.Get_Header()
     for d in b:
-        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
+        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
         text = fontObj.render(str(d), True, WHITE)
-        screen.blit(text, (0, c * 20))
+        screen.blit(text, (0, Resolution_calculate(c * 20)))
         c = c + 1
     while not esc:
         pygame.display.flip()
