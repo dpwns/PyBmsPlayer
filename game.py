@@ -103,7 +103,8 @@ class BMS_Parser:
         ['Total', '']]
         temp_string = File.readline()
         while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            print(temp_string)
+            if not temp_string: 
+                break
             temp_string = temp_string.replace('\n', '')
             if temp_string.find('#PLAYER') != -1:
                 Header_data[0][1] = temp_string.replace("#PLAYER ", "")
@@ -139,7 +140,8 @@ class BMS_Parser:
                 temp_string = temp_string.replace("#WAV", "")
                 Wav_data.append([temp_string[0:2], temp_string[3:]])
             temp_string = File.readline()
-        print(Wav_data)
+        File.close()
+        return Wav_data
     
     def Get_note_data(self):
         if (self.file_dir == ''): 
@@ -159,6 +161,7 @@ class BMS_Parser:
                 continue
             temp_string = temp_string.replace('\n', '')
             track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
+        File.close()
         return track
 
     def Get_note_data_bar(self, bar_number):
@@ -181,10 +184,11 @@ class BMS_Parser:
             if bar_number == temp_string[1:4]:
                 temp_string = temp_string.replace('\n', '')
                 track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
+        File.close()
         return track
 
 temp = Bundle.Get_script_file_directory('004. Applesoda - JoHwa')
 print(temp[0])
 p = BMS_Parser(temp[0])
-print(p.Get_Header)
+print(p.Get_Header())
 print("asdf")
