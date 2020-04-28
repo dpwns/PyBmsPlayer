@@ -231,12 +231,6 @@ def Screen_init(width, height, caption):
     pygame.display.set_caption(caption)
     return Screen
 
-def Key_input_Event():
-    for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-            press = pygame.key
-            return press
-
 def Song_select():
     clock = pygame.time.Clock()
     WHITE = (255, 255, 255)
@@ -255,6 +249,8 @@ def Song_select():
         screen.fill(BLACK)
         if not is_file_select:
             for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
                 if event.type == pygame.KEYDOWN:
                     key = pygame.key.get_pressed()
                     if key[pygame.K_UP] == 1:
@@ -316,6 +312,8 @@ def Song_select():
                 pygame.display.flip()
                 continue
             for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
                 if event.type == pygame.KEYDOWN:
                     key = pygame.key.get_pressed()
                     if key[pygame.K_UP] == 1:
@@ -362,14 +360,8 @@ def Song_select():
         pygame.display.flip()
     return
 
-temp = Bundle.Get_script_file('004. Applesoda - JoHwa')
-
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 128)
-BLACK = (0, 0, 0)
-
 pygame.init()
 screen = Screen_init(1280, 720, 'PPAP')
 pygame.mouse.set_visible(True)
-while True:
-    Song_select()
+
+Song_select()
