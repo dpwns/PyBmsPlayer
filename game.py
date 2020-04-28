@@ -2,6 +2,9 @@ import os
 import pygame
 import sys
 
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
 class Bundle:
     @staticmethod
     def Get_folder_directory():
@@ -74,7 +77,7 @@ class BMS_Parser:
     def __init__(self, file_directory):
         self.file_dir = file_directory
         self.folder_dir = self.file_dir
-        while True:
+        while len(self.folder_dir) > 0:
             if self.folder_dir[-1] == '\\':
                 self.folder_dir = self.folder_dir[0:-1]
                 break
@@ -233,8 +236,6 @@ def Screen_init(width, height, caption):
 
 def Song_select():
     clock = pygame.time.Clock()
-    WHITE = (255, 255, 255)
-    BLACK = (0, 0, 0)
     select_song = ''
     select_song_index = 0
     max_song_index = 0
@@ -313,7 +314,7 @@ def Song_select():
                 continue
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    return
+                    return Bundle.SongList_name
                 if event.type == pygame.KEYDOWN:
                     key = pygame.key.get_pressed()
                     if key[pygame.K_UP] == 1:
@@ -328,6 +329,9 @@ def Song_select():
                             select_song_file_index = 0
                     elif key[pygame.K_ESCAPE] == 1 or key[pygame.K_LEFT] == 1:
                         is_file_select = False
+                    elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
+                        if max_song_file_index > 0:
+                            return Bundle.SongList_name(song_list[select_song_index]) + '\\' + song_file_list[select_song_file_index]
             if select_song_file_index - 3 >= 0:
                 fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
                 text = fontObj.render(song_file_list[select_song_file_index - 3], True, WHITE)
@@ -364,4 +368,25 @@ pygame.init()
 screen = Screen_init(1280, 720, 'PPAP')
 pygame.mouse.set_visible(True)
 
-Song_select()
+p = BMS_Parser('')
+a = Song_select()
+c = 0
+esc = False
+if a != '':
+    clock = pygame.time.Clock()
+    p.Set_file_directory(a)
+    b = p.Get_Header()
+    for d in b:
+        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
+        text = fontObj.render(str(d), True, WHITE)
+        screen.blit(text, (0, c * 20))
+        c = c + 1
+    while not esc:
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                esc = True
+            if event.type == pygame.KEYDOWN:
+                key = pygame.key.get_pressed()
+                if key[pygame.K_ESCAPE]:
+                    esc = True
