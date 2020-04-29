@@ -120,31 +120,31 @@ class BMS_Parser:
         while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
             temp_string = temp_string.replace('\n', '')
             if (temp_string.startswith('#')):
-                if temp_string.find('#PLAYER') != -1:
+                if temp_string.find('#PLAYER ') != -1:
                     Header_data[0][1] = temp_string.replace("#PLAYER ", "")
-                elif temp_string.find('#GENRE') != -1:
+                elif temp_string.find('#GENRE ') != -1:
                     Header_data[1][1] = temp_string.replace("#GENRE ", "")
-                elif temp_string.find('#TITLE') != -1:
+                elif temp_string.find('#TITLE ') != -1:
                     Header_data[2][1] = temp_string.replace("#TITLE ", "")
-                elif temp_string.find('#ARTIST') != -1:
+                elif temp_string.find('#ARTIST ') != -1:
                     Header_data[3][1] = temp_string.replace("#ARTIST ", "")
-                elif temp_string.find('#BPM') != -1:
+                elif temp_string.find('#BPM ') != -1:
                     Header_data[4][1] = temp_string.replace("#BPM ", "")
-                elif temp_string.find('#PLAYLEVEL') != -1:
+                elif temp_string.find('#PLAYLEVEL ') != -1:
                     Header_data[5][1] = temp_string.replace("#PLAYLEVEL ", "")
-                elif temp_string.find('#RANK') != -1:
+                elif temp_string.find('#RANK ') != -1:
                     Header_data[6][1] = temp_string.replace("#RANK ", "")
-                elif temp_string.find('#VOLWAV') != -1:
+                elif temp_string.find('#VOLWAV ') != -1:
                     Header_data[7][1] = temp_string.replace("#VOLWAV ", "")
-                elif temp_string.find('#STAGEFILE') != -1:
+                elif temp_string.find('#STAGEFILE ') != -1:
                     Header_data[8][1] = temp_string.replace("#STAGEFILE", "")
-                elif temp_string.find('#TOTAL') != -1:
+                elif temp_string.find('#TOTAL ') != -1:
                     Header_data[9][1] = temp_string.replace("#TOTAL ", "")
-                elif temp_string.find('#MIDIFILE') != -1:
+                elif temp_string.find('#MIDIFILE ') != -1:
                     Header_data[10][1] = temp_string.replace("#MIDIFILE ", "")
-                elif temp_string.find('#VIDEOFILE') != -1:
+                elif temp_string.find('#VIDEOFILE ') != -1:
                     Header_data[11][1] = temp_string.replace("#VIDEOFILE ", "")
-                elif temp_string.find('#BMP') != -1:
+                elif temp_string.find('#BMP ') != -1:
                     Header_data[12][1] = temp_string.replace("#BMP ", "")
             temp_string = File.readline()
         File.close()
@@ -173,26 +173,63 @@ class BMS_Parser:
         wav_dir = self.folder_dir[self.folder_dir.find('Bundle'):] + '\\'
         print(wav_dir)
         for wav in wav_file:
-            dir = wav_dir + wav[1]
+            dir_temp = wav_dir + wav[1]
             if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
-                dir = dir.replace(".wav", ".ogg")
-            sound = pygame.mixer.Sound(dir)
+                dir_temp = dir_temp.replace(".wav", ".ogg")
+            sound = pygame.mixer.Sound(dir_temp)
             load_wav.append([wav[0], sound])
         return load_wav
+    
+    def Get_BPM(self):
+        if (self.file_dir == ''): 
+            return
+        File = open(self.file_dir, 'r')
+        temp_string = File.readline()
+        BPM_data = list()
+        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
+            temp_string = temp_string.replace('\n', '')
+            if (temp_string.startswith('#')):
+                if temp_string.find('#BPM') != -1 and temp_string.find('#BPM ') == -1:
+                    temp_string = temp_string.replace("#BPM", "")
+                    BPM_data.append([temp_string[0:3], temp_string[3:]])
+            temp_string = File.readline()
+        File.close()
+        return BPM_data
 
+    def Get_Node_shorten(self):
+        temp_list = self.Get_note_data_channel('02')
+        List = list()
+        index = 0
+        for temp in temp_list:
+            if len(temp) <= 0 or temp == []:
+                List.append([])
+                index = index + 1
+                continue
+            temp = temp[0]
+            List.append([index, temp[1]])
+        return List
+
+    """
+    def LongNote_LNTYPE1(self):
+        return
+
+    def LongNote_LNTYPE2(self):
+        return
+
+    def LongNote_LNOBJ(self):
+        return
+    """
     def Get_note_data(self):
         if (self.file_dir == ''): 
             return
         track = list()
         File = open(self.file_dir, 'r')
         temp_string = File.readline()
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = File.readline()
-            if not temp_string: 
-                break
         while temp_string != '':
             temp_string = File.readline()
             if not temp_string.startswith('#'):
+                continue
+            if temp_string[6] != ':':
                 continue
             temp_string = temp_string.replace('\n', '')
             index = int(temp_string[1:4])
@@ -223,6 +260,8 @@ class BMS_Parser:
                 break
             if temp_string.find('#') == -1:
                 continue
+            if temp_string[6] != ':':
+                continue
             temp_string = temp_string.replace('\n', '')
             if temp_string[4:6] == channel:
                 index = int(temp_string[1:4])
@@ -238,6 +277,26 @@ class BMS_Parser:
         if bar_number >= len(track) or bar_number < 0:
             return
         return track[int(bar_number)]
+
+class Note:
+    node = -1
+    channel = -1
+    interval = float(-1)
+    sound = None
+    def __init__(self, node, channel, interval, sound):
+        self.node = int(node)
+        self.channel = int(node)
+        self.interval = float(interval)
+        self.sound = sound
+    
+    def is_vaild(self):
+        if self.node < 0:
+            return False
+        if self.channel < 0:
+            return False
+        if self.interval < 0:
+            return False
+        return True
 
 def Screen_init(width, height, caption):
     Screen = pygame.display.set_mode((width, height))
@@ -358,6 +417,11 @@ def Song_select():
         pygame.display.flip()
     return
 
+def Song_play(parser):
+    header = parser.Get_Header()
+    BPM = int(head[head.index('BPM')][1])
+    return
+
 pygame.init()
 pygame.mixer.init()
 screen = Screen_init(Width, Height, 'BMS Player')
@@ -372,12 +436,15 @@ esc = False
 if a != None:
     clock = pygame.time.Clock()
     p.Set_file_directory(a)
-    ttemp = p.Get_note_data_channel(1)
+    ttemp = p.Get_note_data()
+    print(p.Get_BPM())
+    """
     i = 0
     while i < len(ttemp):
         print(str(i)+' : ')
         print(ttemp[i])
         i = i + 1
+    """
     b = p.Get_Header()
     for d in b:
         fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
