@@ -1,5 +1,6 @@
 import os
 import pygame
+import time
 
 Frame = 60
 Height = 360
@@ -109,28 +110,42 @@ class BMS_Parser:
         ['BPM', ''],
         ['PlayLevel', ''],
         ['Rank', ''],
-        ['Total', '']]
+        ['Volwav', ''],
+        ['Stagefile', ''],
+        ['Total', ''],
+        ['Midifile', ''],
+        ['Videofile', ''],
+        ['Bmp', '']]
         temp_string = File.readline()
         while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            if not temp_string: 
-                break
             temp_string = temp_string.replace('\n', '')
-            if temp_string.find('#PLAYER') != -1:
-                Header_data[0][1] = temp_string.replace("#PLAYER ", "")
-            elif temp_string.find('#GENRE') != -1:
-                Header_data[1][1] = temp_string.replace("#GENRE ", "")
-            elif temp_string.find('#TITLE') != -1:
-                Header_data[2][1] = temp_string.replace("#TITLE ", "")
-            elif temp_string.find('#ARTIST') != -1:
-                Header_data[3][1] = temp_string.replace("#ARTIST ", "")
-            elif temp_string.find('#BPM') != -1:
-                Header_data[4][1] = temp_string.replace("#BPM ", "")
-            elif temp_string.find('#PLAYLEVEL') != -1:
-                Header_data[5][1] = temp_string.replace("#PLAYLEVEL ", "")
-            elif temp_string.find('#RANK') != -1:
-                Header_data[6][1] = temp_string.replace("#RANK ", "")
-            elif temp_string.find('#TOTAL') != -1:
-                Header_data[7][1] = temp_string.replace("#TOTAL ", "")
+            if (temp_string.startswith('#')):
+                if temp_string.find('#PLAYER') != -1:
+                    Header_data[0][1] = temp_string.replace("#PLAYER ", "")
+                elif temp_string.find('#GENRE') != -1:
+                    Header_data[1][1] = temp_string.replace("#GENRE ", "")
+                elif temp_string.find('#TITLE') != -1:
+                    Header_data[2][1] = temp_string.replace("#TITLE ", "")
+                elif temp_string.find('#ARTIST') != -1:
+                    Header_data[3][1] = temp_string.replace("#ARTIST ", "")
+                elif temp_string.find('#BPM') != -1:
+                    Header_data[4][1] = temp_string.replace("#BPM ", "")
+                elif temp_string.find('#PLAYLEVEL') != -1:
+                    Header_data[5][1] = temp_string.replace("#PLAYLEVEL ", "")
+                elif temp_string.find('#RANK') != -1:
+                    Header_data[6][1] = temp_string.replace("#RANK ", "")
+                elif temp_string.find('#VOLWAV') != -1:
+                    Header_data[7][1] = temp_string.replace("#VOLWAV ", "")
+                elif temp_string.find('#STAGEFILE') != -1:
+                    Header_data[8][1] = temp_string.replace("#STAGEFILE", "")
+                elif temp_string.find('#TOTAL') != -1:
+                    Header_data[9][1] = temp_string.replace("#TOTAL ", "")
+                elif temp_string.find('#MIDIFILE') != -1:
+                    Header_data[10][1] = temp_string.replace("#MIDIFILE ", "")
+                elif temp_string.find('#VIDEOFILE') != -1:
+                    Header_data[11][1] = temp_string.replace("#VIDEOFILE ", "")
+                elif temp_string.find('#BMP') != -1:
+                    Header_data[12][1] = temp_string.replace("#BMP ", "")
             temp_string = File.readline()
         File.close()
         return Header_data
@@ -143,15 +158,29 @@ class BMS_Parser:
         Wav_data = list()
         while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
             temp_string = temp_string.replace('\n', '')
-            if not temp_string: 
-                break
-            if temp_string.find('#WAV') != -1:
-                temp_string = temp_string.replace("#WAV", "")
-                Wav_data.append([temp_string[0:2], temp_string[3:]])
+            if (temp_string.startswith('#')):
+                if temp_string.find('#WAV') != -1:
+                    temp_string = temp_string.replace("#WAV", "")
+                    Wav_data.append([temp_string[0:1], temp_string[3:]])
             temp_string = File.readline()
         File.close()
         return Wav_data
-    
+
+    def Load_WAV(self):
+        wav_file = self.Get_WAV()
+        print(wav_file)
+        load_wav = list()
+        wav_dir = self.folder_dir[self.folder_dir.find('Bundle'):] + '\\'
+        print(wav_dir)
+        for wav in wav_file:
+            dir = wav_dir + wav[1]
+            if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
+                dir = dir.replace(".wav", ".ogg")
+            sound = pygame.mixer.Sound(dir)
+            load_wav.append([wav[0], sound])
+        return load_wav
+
+
     def Get_note_data(self):
         if (self.file_dir == ''): 
             return
@@ -164,9 +193,7 @@ class BMS_Parser:
                 break
         while temp_string != '':
             temp_string = File.readline()
-            if not temp_string: 
-                break
-            if temp_string.find('#') == -1:
+            if not temp_string.startswith('#'):
                 continue
             temp_string = temp_string.replace('\n', '')
             track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
@@ -350,6 +377,7 @@ def Song_select():
     return
 
 pygame.init()
+pygame.mixer.init()
 screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
@@ -358,10 +386,12 @@ p = BMS_Parser('')
 a = Song_select()
 c = 0
 esc = False
+
 if a != '':
     clock = pygame.time.Clock()
     p.Set_file_directory(a)
     b = p.Get_Header()
+    p.Load_WAV()
     for d in b:
         fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
         text = fontObj.render(str(d), True, WHITE)
