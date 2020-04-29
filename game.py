@@ -3,8 +3,8 @@ import pygame
 import time
 
 Frame = 60
-Height = 360
-Width = 640
+Height = 720
+Width = 1280
 Text_size1 = 20
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -180,7 +180,6 @@ class BMS_Parser:
             load_wav.append([wav[0], sound])
         return load_wav
 
-
     def Get_note_data(self):
         if (self.file_dir == ''): 
             return
@@ -196,8 +195,10 @@ class BMS_Parser:
             if not temp_string.startswith('#'):
                 continue
             temp_string = temp_string.replace('\n', '')
-            track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
-            print(temp_string[1:4])
+            index = int(temp_string[1:4])
+            while len(track) <= index:
+                track.append([])
+            track[index].append([temp_string[4:6], temp_string[7:]])
         File.close()
         return track
 
@@ -224,40 +225,19 @@ class BMS_Parser:
                 continue
             temp_string = temp_string.replace('\n', '')
             if temp_string[4:6] == channel:
-                track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
+                index = int(temp_string[1:4])
+                while len(track) <= index:
+                    track.append([])
+                track[index].append([temp_string[4:6], temp_string[7:]])
         File.close()
         return track
 
     def Get_note_data_bar(self, bar_number):
-        if (self.file_dir == ''): 
+        track = self.Get_note_data()
+        bar_number = int(bar_number)
+        if bar_number >= len(track) or bar_number < 0:
             return
-        bar_number = str(bar_number)
-        if len(bar_number) == 0:
-            bar_number = '000'
-        elif len(bar_number) == 1:
-            bar_number = '00' + bar_number
-        elif len(bar_number) == 2:
-            bar_number = '0' + bar_number
-        print(bar_number)
-        track = list()
-        File = open(self.file_dir, 'r')
-        temp_string = File.readline()
-        bar_number = str(bar_number)
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = File.readline()
-            if not temp_string: 
-                break
-        while temp_string != '':
-            temp_string = File.readline()
-            if not temp_string: 
-                break
-            if temp_string.find('#') == -1:
-                continue
-            if bar_number == temp_string[1:4]:
-                temp_string = temp_string.replace('\n', '')
-                track.append([temp_string[1:4], temp_string[4:6], temp_string[7:]])
-        File.close()
-        return track
+        return track[int(bar_number)]
 
 def Screen_init(width, height, caption):
     Screen = pygame.display.set_mode((width, height))
@@ -298,6 +278,8 @@ def Song_select():
                     elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
                         select_song_file_index = 0
                         is_file_select = True
+                    elif key[pygame.K_ESCAPE] == 1:
+                        return
             if max_song_index == 0:
                 fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
                 text = fontObj.render('Empty', True, WHITE)
@@ -335,7 +317,7 @@ def Song_select():
                 continue
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    return Bundle.SongList_name
+                    return
                 if event.type == pygame.KEYDOWN:
                     key = pygame.key.get_pressed()
                     if key[pygame.K_UP] == 1:
@@ -387,11 +369,16 @@ a = Song_select()
 c = 0
 esc = False
 
-if a != '':
+if a != None:
     clock = pygame.time.Clock()
     p.Set_file_directory(a)
+    ttemp = p.Get_note_data_channel(1)
+    i = 0
+    while i < len(ttemp):
+        print(str(i)+' : ')
+        print(ttemp[i])
+        i = i + 1
     b = p.Get_Header()
-    p.Load_WAV()
     for d in b:
         fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
         text = fontObj.render(str(d), True, WHITE)
