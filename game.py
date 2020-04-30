@@ -219,6 +219,13 @@ class BMS_Parser:
     def LongNote_LNOBJ(self):
         return
     """
+
+    def Get_Long_note(self):
+        return
+        
+    def Get_Normal_note(self):
+        return
+
     def Get_note_data(self):
         if (self.file_dir == ''): 
             return
