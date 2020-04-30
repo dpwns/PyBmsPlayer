@@ -1,13 +1,15 @@
 import os
 import pygame
 import time
+import threading
 
-Frame = 60
+Frame = 144
 Height = 720
 Width = 1280
 Text_size1 = 20
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+RED = (255, 0, 0)
 
 class Bundle:
     @staticmethod
@@ -161,23 +163,21 @@ class BMS_Parser:
             if (temp_string.startswith('#')):
                 if temp_string.find('#WAV') != -1:
                     temp_string = temp_string.replace("#WAV", "")
-                    Wav_data.append([temp_string[0:1], temp_string[3:]])
+                    Wav_data.append([temp_string[0:2], temp_string[3:]])
             temp_string = File.readline()
         File.close()
         return Wav_data
 
     def Load_WAV(self):
         wav_file = self.Get_WAV()
-        print(wav_file)
         load_wav = list()
         wav_dir = self.folder_dir[self.folder_dir.find('Bundle'):] + '\\'
-        print(wav_dir)
         for wav in wav_file:
             dir_temp = wav_dir + wav[1]
             if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
                 dir_temp = dir_temp.replace(".wav", ".ogg")
             sound = pygame.mixer.Sound(dir_temp)
-            load_wav.append([wav[0], sound])
+            load_wav.append([str(wav[0]), sound])
         return load_wav
     
     def Get_BPM(self):
@@ -209,21 +209,11 @@ class BMS_Parser:
             List.append([index, temp[1]])
         return List
 
-    """
-    def LongNote_LNTYPE1(self):
-        return
-
-    def LongNote_LNTYPE2(self):
-        return
-
-    def LongNote_LNOBJ(self):
-        return
-    """
-
     def Get_Long_note(self):
         return
         
     def Get_Normal_note(self):
+        
         return
 
     def Get_note_data(self):
@@ -285,25 +275,38 @@ class BMS_Parser:
             return
         return track[int(bar_number)]
 
-class Note:
+class Note_Obj:
+    channel = ''
+    sound = None
+    y = 0.0
+    def __init__(self, sound, y, channel):
+        self.y = float(y)
+        self.sound = sound
+        self.channel = channel
+    def Add_y(self, plus):
+        self.y = float(self.y + plus)
+
+class Long_Note:
     node = -1
     channel = -1
-    interval = float(-1)
+    start = float(-1)
+    end = float(-1)
     sound = None
-    def __init__(self, node, channel, interval, sound):
+    def __init__(self, node, channel, start, end, sound):
         self.node = int(node)
         self.channel = int(node)
-        self.interval = float(interval)
+        self.start = float(start)
+        self.end = float(end)
         self.sound = sound
-    
     def is_vaild(self):
         if self.node < 0:
             return False
         if self.channel < 0:
             return False
-        if self.interval < 0:
+        if self.start < 0:
             return False
-        return True
+        if self.end <= self.start:
+            return True
 
 def Screen_init(width, height, caption):
     Screen = pygame.display.set_mode((width, height))
@@ -424,41 +427,109 @@ def Song_select():
         pygame.display.flip()
     return
 
-def Song_play(parser):
-    header = parser.Get_Header()
-    BPM = int(head[head.index('BPM')][1])
-    return
+class Line_Obj:
+    y = 0.0
+    node = 0
+    def __init__(self, y, node):
+        self.y = float(y)
+        self.node = int(node)
 
-pygame.init()
+    def Add_y(self, plus):
+        self.y = float(self.y + plus)
+
+class Song_Play():
+    select_song = ''
+    parser = BMS_Parser('')
+    screen = None
+    def __init__(self, song_file_directory, screen):
+        self.select_song = song_file_directory
+        self.parser.Set_file_directory(song_file_directory)
+        self.screen = screen
+
+    def Play(self):
+        Speed = 0.5
+        End = False
+        Line = list()
+        header = self.parser.Get_Header()
+        BPM = int(header[4][1])
+        clock = pygame.time.Clock()
+        Node = -5
+        time = float(240/BPM)
+        print(time)
+        Note = list()
+        Sound = self.parser.Load_WAV()
+        for index1 in range(0, 25):
+            if len(Line) > 0:
+                Line.append(Line_Obj(Line[index1 - 1].y - 720 * time * Speed, index1))
+            else:
+                Line.append(Line_Obj(0, index1))
+        for index1 in range(0, 9):
+            Note_list = self.parser.Get_note_data_channel(11 + index1)
+            if len(Note_list) <= 25:
+                continue
+            for index2 in range(0, 25):
+                temp = Note_list[index2]
+                if temp != []:
+                    temp = temp[0]
+                    if len(temp[1]) % 2 != 0:
+                        continue
+                    count = len(temp[1]) // 2
+                    for index3 in range(0, count):
+                        s = str(temp[1][index3*2:index3*2+2])
+                        if s == '00':
+                            continue
+                        for sound_obj in Sound:
+                            if sound_obj[0] == s:
+                                Note.append(Note_Obj(sound_obj[1], float(Line[index2].y - 720 * time * index3 * Speed / count), 11 + index1))
+                                break
+        while not End:
+            screen.fill(BLACK)
+            pygame.draw.line(self.screen, WHITE, [0, 600], [240, 600], 2)
+            for l in Line:
+                value = round(l.y)
+                if value >= 0:
+                    pygame.draw.line(self.screen, WHITE, [0, value], [240, value], 1)
+                l.Add_y(float(720 * Speed / Frame))
+                if value >= 720:
+                    Line.remove(l)
+            if Line[len(Line) - 1].y >= 0:
+                End = True
+            #while Line[len(Line) - 1].y >= 0:
+                #Line.append(Line_Obj(Line[len(Line) - 1].y - 720, Line[len(Line) - 1].node + 1))
+            for n in Note:
+                value = round(n.y)
+                if value >= 0:
+                    pygame.draw.line(self.screen, RED, [(int(n.channel) - 11) * 40, value], [(int(n.channel) - 10) * 40, value], 4)
+                n.Add_y(float(720 * Speed / Frame))
+                if value >= 600:
+                    n.sound.stop()
+                    n.sound.play()
+                    Note.remove(n)
+                if value >= 720:
+                    Note.remove(n)
+            pygame.display.flip()
+            clock.tick(Frame)
+        return
+
+pygame.mixer.pre_init(44100, -16, 16, 512)
 pygame.mixer.init()
+pygame.init()
 screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
 p = BMS_Parser('')
-a = Song_select()
-c = 0
 esc = False
 
-if a != None:
-    clock = pygame.time.Clock()
-    p.Set_file_directory(a)
-    ttemp = p.Get_note_data()
-    print(p.Get_BPM())
-    """
-    i = 0
-    while i < len(ttemp):
-        print(str(i)+' : ')
-        print(ttemp[i])
-        i = i + 1
-    """
-    b = p.Get_Header()
-    for d in b:
-        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-        text = fontObj.render(str(d), True, WHITE)
-        screen.blit(text, (0, Resolution_calculate(c * 20)))
-        c = c + 1
-    while not esc:
+while not esc:
+    a = Song_select()
+    if a == None:
+        esc = True
+    else:
+        p.Set_file_directory(a)
+        ttemp = p.Get_note_data()
+        s = Song_Play(a, screen)
+        s.Play()
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -467,3 +538,4 @@ if a != None:
                 key = pygame.key.get_pressed()
                 if key[pygame.K_ESCAPE]:
                     esc = True
+    clock.tick(Frame)
