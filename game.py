@@ -1,9 +1,8 @@
 import os
 import pygame
 import time
-import threading
 
-Frame = 60
+Frame = 144
 Height = 720
 Width = 1280
 Text_size1 = 20
@@ -417,12 +416,14 @@ def Song_select():
         pygame.display.flip()
     return
 
-class Line_Obj:
+class Line_Obj_class:
     y = 0.0
     node = 0
-    def __init__(self, y, node):
+    length = 0.0
+    def __init__(self, y, node, length):
         self.y = float(y)
         self.node = int(node)
+        self.length = length
 
     def Add_y(self, plus):
         self.y = float(self.y + plus)
@@ -471,7 +472,7 @@ class BPM_data_class:
             self.position = float(0)
         self.bpm = float(bpm)
 
-class Note_Obj:
+class Note_Obj_class:
     channel = ''
     sound = None
     y = 0.0
@@ -637,141 +638,118 @@ class Song_Play():
                             BPM[node].append(temp)
                             BPM_temp1.remove(temp)
             node = node + 1
-        for temp in BPM:
-            for temp2 in temp:
-                print(temp2.bpm, end = ' ')
-            print(' ')
         return BPM
 
     def Play(self):
         self.BPM_read()
-        """
         Speed = 1
         End = False
         Node = -1
         clock = pygame.time.Clock()
-        is_Stop = False
-
+        is_stop = False
         header = self.parser.Get_Header()
-        Start_BPM = int(header[4][1])
+        BPM = float(header[4][1])
+        time = float(240/BPM)
+        Node_count = 0
 
-        Line = list()
-        BPM = list()
-        Note = list()
-        Stop = list()
+        Line_Obj = list()
+        BPM_Obj = list()
+        Note_Obj = list()
+        Stop_Obj = list()
 
-        Stop_data = list()
-        BPM_data = list()
-        
-        time = float(240/Start_BPM)
+        Stop_data = self.Stop_read()
+        BPM_data = self.BPM_read()
+        Note_data = self.Note_read()
+        Note_Length_data = self.parser.Get_Node_length()
 
-        Temp = self.parser.Get_note_data_channel('03')
-        for bpm_data in Temp:
-            if bpm_data == []:
-                BPM_data.append([])
-                continue
-            BPM_data.append([Stop_Obj()])
-        self.Note_read()
+        Node_count = len(Note_data[0])
 
-        node = 0
-        Temp = self.parser.Get_stop()
-        Temp2 = self.parser.Get_note_data_channel('09')
-        for stop in Temp2:
-            if stop == []:
-                Stop_data.append([])
-                continue
-            Stop_data.append([Stop_Obj()])
-
-        self.parser.Get_stop()
-        Sound = self.parser.Load_WAV()
-        Note_Length = self.parser.Get_Node_length()
-        Line.append(Line_Obj(0, 0))
         Length = 720 * Speed
-        
-        for index1 in range(1, 25):
-            Line.append(Line_Obj(Line[index1 - 1].y - Length * float(Note_Length[index1 - 1][1]), index1))
+
+        sound_channel = 0
+        Max_sound_channel = 32
+
+        Line_Obj.append(Line_Obj_class(0, 0, Note_Length_data[0][1]))
         for index1 in range(0, 9):
-            Note_list = self.parser.Get_note_data_channel(11 + index1)
-            if len(Note_list) <= 25:
-                continue
-            for index2 in range(0, 25):
-                temp = Note_list[index2]
-                if temp != []:
-                    temp = temp[0]
-                    if len(temp[1]) % 2 != 0:
-                        continue
-                    count = len(temp[1]) // 2
-                    for index3 in range(0, count):
-                        s = str(temp[1][index3*2:index3*2+2])
-                        if s == '00':
-                            continue
-                        for sound_obj in Sound:
-                            if sound_obj[0] == s:
-                                Note.append(Note_Obj(sound_obj[1], float(Line[index2].y - Length * float(Note_Length[index2 - 1][1]) * index3 / count), 11 + index1))
-                                break
-                        Note.append(Note_Obj(None, float(Line[index2].y - Length * float(Note_Length[index2 - 1][1]) * index3 / count), 11 + index1))
+            for temp1 in Note_data[index1][0]:
+                Note_Obj.append(Note_Obj_class(temp1.sound, float(temp1.position) * float(Length) * float(Line_Obj[0].length), temp1.channel))
+
         while not End:
             screen.fill(BLACK)
+
             for index1 in range(1, 8):
                 pygame.draw.line(self.screen, (100, 100, 100), [40 * index1, 0], [40 * index1, 600], 1)
-            pygame.draw.line(self.screen, WHITE, [0, 600], [320, 600], 2)
-            for l in Line:
-                value = round(l.y)
-                if value >= 0:
-                    pygame.draw.line(self.screen, WHITE, [0, value], [320, value], 1)
-                if not is_Stop:
-                    l.Add_y(float(720 * Speed / time / Frame))
-                if value >= 600:
-                    Node = l.node
-                    Line.remove(l)
-            if Line[len(Line) - 1].y >= 0:
-                End = True
-            for n in Note:
-                value = round(n.y)
+            pygame.draw.line(self.screen, WHITE, [0, 600], [280, 600], 2)
+
+            for temp1 in Line_Obj:
+                if temp1.y < 0:
+                    break
+                value = round(temp1.y)
+                pygame.draw.line(self.screen, WHITE, [0, value], [280, value], 1)
+
+            if len(Line_Obj) > 0:
+                if Line_Obj[-1].y >= 0:
+                    if not Line_Obj[-1].node >= Node_count - 1:
+                        Line_Obj.append(Line_Obj_class(Line_Obj[-1].y - Length * float(Line_Obj[-1].length), Line_Obj[-1].node + 1, Note_Length_data[Line_Obj[-1].node][1]))
+                        for index1 in range(0, 9):
+                            for temp1 in Note_data[index1][Line_Obj[-1].node]:
+                                Note_Obj.append(Note_Obj_class(temp1.sound, Line_Obj[-1].y - float(temp1.position) * Length * float(Line_Obj[-1].length), temp1.channel))
+
+            for temp1 in Note_Obj:
+                value = round(temp1.y)
                 if value >= 0:
                     position = 0
                     color = WHITE
-                    if int(n.channel) == 11:
+                    if int(temp1.channel) == 11:
                         position = 1
                         color = WHITE
-                    elif int(n.channel) == 12:
+                    elif int(temp1.channel) == 12:
                         position = 2
                         color = BLUE
-                    elif int(n.channel) == 13:
+                    elif int(temp1.channel) == 13:
                         position = 3
                         color = WHITE
-                    elif int(n.channel) == 14:
+                    elif int(temp1.channel) == 14:
                         position = 4
                         color = YELLOW
-                    elif int(n.channel) == 15:
+                    elif int(temp1.channel) == 15:
                         position = 5
                         color = WHITE
-                    elif int(n.channel) == 16:
+                    elif int(temp1.channel) == 16:
                         position = 0
                         color = RED
-                    elif int(n.channel) == 18:
+                    elif int(temp1.channel) == 18:
                         position = 6
                         color = BLUE
-                    elif int(n.channel) == 19:
+                    elif int(temp1.channel) == 19:
                         position = 7
                         color = WHITE
                     pygame.draw.line(self.screen, color, [position * 40, value], [(position + 1) * 40, value], 4)
-                if not is_Stop:
-                    n.Add_y(float(720 * Speed / time / Frame))
-                if value >= 600:
-                    if n.sound != None:
-                        n.sound.stop()
-                        n.sound.play()
-                    Note.remove(n)
-                if value >= 720:
-                    Note.remove(n)
+
+            for temp1 in Line_Obj:
+                temp1.Add_y(float(Length / time / Frame))
+                if temp1.y >= 600:
+                    Node = temp1.node
+                    Line_Obj.remove(temp1)
+
+            for temp1 in Note_Obj:
+                temp1.Add_y(float(Length / time / Frame))
+                if temp1.y >= 600:
+                    if temp1.sound != None:
+                        pygame.mixer.Channel(sound_channel).play(temp1.sound)
+                        sound_channel = sound_channel + 1
+                        if sound_channel >= Max_sound_channel:
+                            sound_channel = 0
+                    Note_Obj.remove(temp1)
+
             pygame.display.flip()
-            clock.tick(Frame)"""
+            clock.tick(Frame)
         return
 
-pygame.mixer.pre_init(44100, -16, 16, 512)
+pygame.mixer.pre_init(22050, -16, 2, 128)
 pygame.mixer.init()
 pygame.init()
+pygame.mixer.set_num_channels(32)  # default is 8
 screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
