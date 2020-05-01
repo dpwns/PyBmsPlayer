@@ -197,7 +197,7 @@ class BMS_Parser:
             if (temp_string.startswith('#')):
                 if temp_string.find('#BPM') != -1 and temp_string.find('#BPM ') == -1:
                     temp_string = temp_string.replace("#BPM", "")
-                    BPM_data.append([temp_string[0:3], temp_string[3:]])
+                    BPM_data.append([temp_string[0:2], temp_string[3:]])
             temp_string = File.readline()
         File.close()
         return BPM_data
@@ -460,6 +460,17 @@ class Stop_data_class:
         if self.duration < 0:
             self.duration = 0
 
+class BPM_data_class:
+    position = 0.0
+    bpm = 0.0
+    def __init__(self, position, bpm):
+        self.position = float(position)
+        if self.position > 1:
+            self.position = float(1)
+        elif self.position < 0:
+            self.position = float(0)
+        self.bpm = float(bpm)
+
 class Note_Obj:
     channel = ''
     sound = None
@@ -553,10 +564,87 @@ class Song_Play():
                         Stop[node].append(Stop_data_class(float(index1 / count), Stop_data[index2][1]))
                         break
             node = node + 1
-        return
+        return Stop
+
+    def BPM_read(self):
+        BPM = list()
+        node = 0
+        BPM_data = self.parser.Get_BPM()
+        Note_data1 = self.parser.Get_note_data_channel('08')
+        Note_data2 = self.parser.Get_note_data_channel('03')
+        while len(Note_data1) > node:
+            BPM.append(list())
+            if Note_data1[node] == [] and Note_data2[node] == []:
+                node = node + 1
+                continue
+            elif Note_data1[node] != [] and Note_data2[node] == []:
+                temp_str1 = Note_data1[node][0]
+                count = len(temp_str1[1]) // 2
+                for index1 in range(0, count):
+                    s = str(temp_str1[1][index1*2 : index1*2+2])
+                    if s == '00':
+                        continue
+                    for index2 in range(0, len(BPM_data)):
+                        if s == BPM_data[index2][0]:
+                            BPM[node].append(BPM_data_class(float(index1 / count), BPM_data[index2][1]))
+                            break
+            elif Note_data1[node] == [] and Note_data2[node] != []:
+                temp_str1 = Note_data2[node][0]
+                count = len(temp_str1[1]) // 2
+                for index1 in range(0, count):
+                    s = str(temp_str1[1][index1*2 : index1*2+2])
+                    if s == '00':
+                        continue
+                    BPM[node].append(BPM_data_class(float(index1 / count), int('0x' + s, 16)))
+            else:
+                BPM_temp1 = list()
+                temp_str1 = Note_data2[node][0]
+                count = len(temp_str1[1]) // 2
+                for index1 in range(0, count):
+                    s = str(temp_str1[1][index1*2 : index1*2+2])
+                    if s == '00':
+                        continue
+                    BPM_temp1.append(BPM_data_class(float(index1 / count), int('0x' + s, 16)))
+                temp_str1 = Note_data1[node][0]
+                count = len(temp_str1[1]) // 2
+                BPM_temp2 = list()
+                for index1 in range(0, count):
+                    s = str(temp_str1[1][index1*2 : index1*2+2])
+                    if s == '00':
+                        continue
+                    for index2 in range(0, len(BPM_data)):
+                        if s == BPM_data[index2][0]:
+                            BPM_temp2.append(BPM_data_class(float(index1 / count), BPM_data[index2][1]))
+                            break
+                while len(BPM_temp1) > 0 or len(BPM_temp2) > 0:
+                    if len(BPM_temp1) > 0 and len(BPM_temp2) > 0:
+                        if BPM_temp1[0].position > BPM_temp2[0].position:
+                            temp = BPM_temp2[0]
+                            BPM[node].append(temp)
+                            BPM_temp2.remove(temp)
+                        else:
+                            temp = BPM_temp1[0]
+                            BPM[node].append(temp)
+                            BPM_temp1.remove(temp)
+                    elif len(BPM_temp1) <= 0:
+                        while len(BPM_temp2) > 0:
+                            temp = BPM_temp2[0]
+                            BPM[node].append(temp)
+                            BPM_temp2.remove(temp)
+                    else:
+                        while len(BPM_temp1) > 0:
+                            temp = BPM_temp1[0]
+                            BPM[node].append(temp)
+                            BPM_temp1.remove(temp)
+            node = node + 1
+        for temp in BPM:
+            for temp2 in temp:
+                print(temp2.bpm, end = ' ')
+            print(' ')
+        return BPM
 
     def Play(self):
-        self.Stop_read()
+        self.BPM_read()
         """
         Speed = 1
         End = False
