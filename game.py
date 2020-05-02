@@ -102,7 +102,7 @@ class BMS_Parser:
                 self.folder_dir = self.folder_dir[0:-1]
 
     def Get_Header(self):
-        if (self.file_dir == ''): 
+        if self.file_dir == '': 
             return
         File = open(self.file_dir, 'r')
         Header_data = [
