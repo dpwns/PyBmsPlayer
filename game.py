@@ -80,7 +80,8 @@ class Bundle:
 class BMS_Parser:
     file_dir = ''
     folder_dir = ''
-
+    Data = list()
+    Note_Data = list()
     def __init__(self, file_directory):
         self.file_dir = file_directory
         self.folder_dir = self.file_dir
@@ -100,11 +101,27 @@ class BMS_Parser:
                 break
             else:
                 self.folder_dir = self.folder_dir[0:-1]
+        self.Read_Data()
 
-    def Get_Header(self):
+    def Data_Check(self):
+        if not self.Data:
+            self.Read_Data()
+
+    def Read_Data(self):
+        self.Data.clear()
         if self.file_dir == '': 
             return
         File = open(self.file_dir, 'r')
+        temp_string = File.readline()
+        while temp_string != '':
+            temp_string = temp_string.replace('\n', '')
+            if temp_string.startswith('#'):
+                self.Data.append(temp_string)
+            temp_string = File.readline()
+        File.close()
+                
+    def Get_Header(self):
+        self.Data_Check()
         Header_data = [
         ['Player', ''],
         ['Genre', ''],
@@ -119,54 +136,42 @@ class BMS_Parser:
         ['Midifile', ''],
         ['Videofile', ''],
         ['Bmp', '']]
-        temp_string = File.readline()
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = temp_string.replace('\n', '')
-            if (temp_string.startswith('#')):
-                if temp_string.find('#PLAYER ') != -1:
-                    Header_data[0][1] = temp_string.replace("#PLAYER ", "")
-                elif temp_string.find('#GENRE ') != -1:
-                    Header_data[1][1] = temp_string.replace("#GENRE ", "")
-                elif temp_string.find('#TITLE ') != -1:
-                    Header_data[2][1] = temp_string.replace("#TITLE ", "")
-                elif temp_string.find('#ARTIST ') != -1:
-                    Header_data[3][1] = temp_string.replace("#ARTIST ", "")
-                elif temp_string.find('#BPM ') != -1:
-                    Header_data[4][1] = temp_string.replace("#BPM ", "")
-                elif temp_string.find('#PLAYLEVEL ') != -1:
-                    Header_data[5][1] = temp_string.replace("#PLAYLEVEL ", "")
-                elif temp_string.find('#RANK ') != -1:
-                    Header_data[6][1] = temp_string.replace("#RANK ", "")
-                elif temp_string.find('#VOLWAV ') != -1:
-                    Header_data[7][1] = temp_string.replace("#VOLWAV ", "")
-                elif temp_string.find('#STAGEFILE ') != -1:
-                    Header_data[8][1] = temp_string.replace("#STAGEFILE", "")
-                elif temp_string.find('#TOTAL ') != -1:
-                    Header_data[9][1] = temp_string.replace("#TOTAL ", "")
-                elif temp_string.find('#MIDIFILE ') != -1:
-                    Header_data[10][1] = temp_string.replace("#MIDIFILE ", "")
-                elif temp_string.find('#VIDEOFILE ') != -1:
-                    Header_data[11][1] = temp_string.replace("#VIDEOFILE ", "")
-                elif temp_string.find('#BMP ') != -1:
-                    Header_data[12][1] = temp_string.replace("#BMP ", "")
-            temp_string = File.readline()
-        File.close()
+        for temp_string in self.Data:
+            if temp_string.find('#PLAYER ') != -1:
+                Header_data[0][1] = temp_string.replace("#PLAYER ", "")
+            elif temp_string.find('#GENRE ') != -1:
+                Header_data[1][1] = temp_string.replace("#GENRE ", "")
+            elif temp_string.find('#TITLE ') != -1:
+                Header_data[2][1] = temp_string.replace("#TITLE ", "")
+            elif temp_string.find('#ARTIST ') != -1:
+                Header_data[3][1] = temp_string.replace("#ARTIST ", "")
+            elif temp_string.find('#BPM ') != -1:
+                Header_data[4][1] = temp_string.replace("#BPM ", "")
+            elif temp_string.find('#PLAYLEVEL ') != -1:
+                Header_data[5][1] = temp_string.replace("#PLAYLEVEL ", "")
+            elif temp_string.find('#RANK ') != -1:
+                Header_data[6][1] = temp_string.replace("#RANK ", "")
+            elif temp_string.find('#VOLWAV ') != -1:
+                Header_data[7][1] = temp_string.replace("#VOLWAV ", "")
+            elif temp_string.find('#STAGEFILE ') != -1:
+                Header_data[8][1] = temp_string.replace("#STAGEFILE", "")
+            elif temp_string.find('#TOTAL ') != -1:
+                Header_data[9][1] = temp_string.replace("#TOTAL ", "")
+            elif temp_string.find('#MIDIFILE ') != -1:
+                Header_data[10][1] = temp_string.replace("#MIDIFILE ", "")
+            elif temp_string.find('#VIDEOFILE ') != -1:
+                Header_data[11][1] = temp_string.replace("#VIDEOFILE ", "")
+            elif temp_string.find('#BMP ') != -1:
+                Header_data[12][1] = temp_string.replace("#BMP ", "")
         return Header_data
     
     def Get_WAV(self):
-        if (self.file_dir == ''): 
-            return
-        File = open(self.file_dir, 'r')
-        temp_string = File.readline()
+        self.Data_Check()
         Wav_data = list()
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = temp_string.replace('\n', '')
-            if (temp_string.startswith('#')):
-                if temp_string.find('#WAV') != -1:
+        for temp_string in self.Data:
+            if temp_string.find('#WAV') != -1:
                     temp_string = temp_string.replace("#WAV", "")
                     Wav_data.append([temp_string[0:2], temp_string[3:]])
-            temp_string = File.readline()
-        File.close()
         return Wav_data
 
     def Load_WAV(self):
@@ -186,35 +191,21 @@ class BMS_Parser:
         return load_wav
     
     def Get_BPM(self):
-        if (self.file_dir == ''): 
-            return
-        File = open(self.file_dir, 'r')
-        temp_string = File.readline()
+        self.Data_Check()
         BPM_data = list()
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = temp_string.replace('\n', '')
-            if (temp_string.startswith('#')):
-                if temp_string.find('#BPM') != -1 and temp_string.find('#BPM ') == -1:
-                    temp_string = temp_string.replace("#BPM", "")
-                    BPM_data.append([temp_string[0:2], temp_string[3:]])
-            temp_string = File.readline()
-        File.close()
+        for temp_string in self.Data:
+            if temp_string.find('#BPM') != -1 and temp_string.find('#BPM ') == -1:
+                temp_string = temp_string.replace("#BPM", "")
+                BPM_data.append([temp_string[0:2], temp_string[3:]])
         return BPM_data
     
     def Get_stop(self):
-        if (self.file_dir == ''): 
-            return
-        File = open(self.file_dir, 'r')
-        temp_string = File.readline()
+        self.Data_Check()
         Stop_data = list()
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = temp_string.replace('\n', '')
-            if (temp_string.startswith('#')):
-                if temp_string.find('#STOP') != -1:
-                    temp_string = temp_string.replace("#STOP", "")
-                    Stop_data.append([temp_string[0:2], temp_string[3:]])
-            temp_string = File.readline()
-        File.close()
+        for temp_string in self.Data:
+            if temp_string.find('#STOP') != -1:
+                temp_string = temp_string.replace("#STOP", "")
+                Stop_data.append([temp_string[0:2], temp_string[3:]])
         return Stop_data
 
     def Get_Node_length(self):
@@ -237,26 +228,18 @@ class BMS_Parser:
     def Get_Normal_note(self):
         
         return
-
+    
     def Get_note_data(self):
-        if (self.file_dir == ''): 
-            return
-        track = list()
-        File = open(self.file_dir, 'r')
-        temp_string = File.readline()
-        while temp_string != '':
-            temp_string = File.readline()
-            if not temp_string.startswith('#'):
-                continue
+        self.Note_Data.clear()
+        self.Data_Check()
+        for temp_string in self.Data:
             if temp_string[6] != ':':
                 continue
-            temp_string = temp_string.replace('\n', '')
             index = int(temp_string[1:4])
-            while len(track) <= index:
-                track.append([])
-            track[index].append([temp_string[4:6], temp_string[7:]])
-        File.close()
-        return track
+            while len(self.Note_Data) <= index:
+                self.Note_Data.append([])
+            self.Note_Data[index].append([temp_string[4:6], temp_string[7:]]) 
+        return self.Note_Data
 
     def Get_note_data_channel(self, channel):
         if (self.file_dir == ''): 
@@ -291,7 +274,9 @@ class BMS_Parser:
         return track
 
     def Get_note_data_bar(self, bar_number):
-        track = self.Get_note_data()
+        if not self.Note_Data:
+            self.Get_note_data()
+        track = self.Note_Data
         bar_number = int(bar_number)
         if bar_number >= len(track) or bar_number < 0:
             return
@@ -771,9 +756,7 @@ class Song_Play():
             for temp1 in Stop_Obj:
                 temp1.Add_y(float(Length / time / Frame))
                 if temp1.y >= 600:
-                    print("STOP!!!")
                     count = round(float(temp1.duration) / Frame)
-                    print(count)
                     for index1 in range(0, count):
                         screen.fill(BLACK)
                         for index2 in range(1, 8):
