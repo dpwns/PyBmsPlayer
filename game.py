@@ -822,7 +822,7 @@ clock = pygame.time.Clock()
 clock.tick(Frame)
 p = BMS_Parser('')
 esc = False
-
+print("asd")
 while not esc:
     a = Song_select()
     if a == None:
