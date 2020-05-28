@@ -6,7 +6,6 @@
             "label": "python execute",
             "type": "shell",
             "command": "python"
-            
         }
     ]
 }

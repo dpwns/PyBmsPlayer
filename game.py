@@ -80,8 +80,9 @@ class Bundle:
 class BMS_Parser:
     file_dir = ''
     folder_dir = ''
-    Data = list()
-    Note_Data = list()
+    Data = list() #.bms, .bml 파일 전체
+    Main_Data = list() #XXXXX: ~~ 부분만, [Node, Channel, Data] 로 구성
+
     def __init__(self, file_directory):
         self.file_dir = file_directory
         self.folder_dir = self.file_dir
@@ -101,13 +102,16 @@ class BMS_Parser:
                 break
             else:
                 self.folder_dir = self.folder_dir[0:-1]
-        self.Read_Data()
 
-    def Data_Check(self):
+    def Data_Check(self): #Data 리스트 체크
         if not self.Data:
             self.Read_Data()
 
-    def Read_Data(self):
+    def Main_Data_Check(self): #Main_Data 리스트 체크
+        if not self.Data:
+            self.Parse_Main_Data()
+
+    def Read_Data(self): #파일 전체 읽기 / #으로 시작하는 부분만 저장
         self.Data.clear()
         if self.file_dir == '': 
             return
@@ -119,8 +123,9 @@ class BMS_Parser:
                 self.Data.append(temp_string)
             temp_string = File.readline()
         File.close()
+        return self.Data
                 
-    def Get_Header(self):
+    def Parse_Header(self): #헤더부분 파싱
         self.Data_Check()
         Header_data = [
         ['Player', ''],
@@ -165,6 +170,147 @@ class BMS_Parser:
                 Header_data[12][1] = temp_string.replace("#BMP ", "")
         return Header_data
     
+    def Parse_Main_Data(self): #Main_Data 읽기
+        self.Main_Data.clear()
+        self.Data_Check()
+        Data_list = list()
+        for temp_string in self.Data:
+            if temp_string[6] != ':':
+                continue
+            node = temp_string[1:4]
+            channel = temp_string[4:6]
+            data = temp_string[7:]
+            Data_list.append([node, channel, data])
+        self.Main_Data = Data_list
+        return Data_list
+
+    def Parse_Stop_key(self): # #STOP 키값 읽기
+        self.Main_Data_Check()
+        Stop_data = list()
+        for temp_string in self.Data:
+            if temp_string.find('#STOP') != -1:
+                temp_string = temp_string.replace("#STOP", "")
+                Stop_data.append([temp_string[0:2], temp_string[3:]])
+        return Stop_data
+    
+    def Parse_Stop(self): # 09번 채널 (시퀀스 정지 채널) 읽기
+        self.Main_Data_Check()
+        Stop_Key = self.Parse_Stop_key()
+        Stop_list = list()
+        Stop_Data = list()
+        for temp in self.Main_Data:
+            if temp[1] != '09':
+                continue
+            Stop_list.append(temp)
+        for temp in Stop_list:
+            data = temp[2]
+            node = temp[0]
+            templist = list()
+            while len(data) > 0:
+                data_temp = data[0:2]
+                data = data[2:]
+                data_temp2 = None
+                for temp2 in Stop_Key:
+                    if temp2[0] == data_temp:
+                        data_temp2 = temp2[1]
+                        break
+                if data_temp2 == None:
+                    data_temp2 = '00'
+                templist.append(data_temp2)
+            Stop_Data.append([node, templist])
+        return Stop_Data
+
+    def Parse_Start_BPM(self): #시작 BPM 읽기
+        self.Data_Check()
+        BPM = None
+        for temp_string in self.Data:
+            if temp_string.find('#BPM ') == -1:
+                temp_string = temp_string.replace("#BPM ", "")
+                BPM_data = temp_string
+                break
+        if BPM == None:
+            BPM = '130'
+        return BPM
+    
+    def Parse_Extended_BPM_key(self): #확장 BPM 읽기 (#BPMxx 실수)
+        self.Data_Check()
+        exBPM_data = list()
+        for temp_string in self.Data:
+            if temp_string.find('#BPM ') == -1 and temp_string.find('#BPM') != -1:
+                temp_string = temp_string.replace("#BPM", "")
+                BPM_Num = temp_string[0:2]
+                data = float(temp_string[2:])
+                exBPM_data.append([BPM_Num, data])
+        return exBPM_data
+
+    def Parse_Extended_BPM(self):
+        self.Main_Data_Check()
+        Start_BPM = self.Parse_Start_BPM()
+        Data_list = list()
+        BPM_list = list()
+        key = self.Parse_Extended_BPM_key()
+        for temp in self.Main_Data:
+            if temp[1] != '08' and temp[1] != '03':
+                continue
+            Data_list.append(temp)
+        for temp in Data_list:
+            data = temp[2]
+            channel = temp[1]
+            node = temp[0]
+            templist = list()
+            while len(data) > 0:
+                data_temp = data[0:2]
+                data = data[2:]
+                data_temp2 = None
+                if channel == '08':
+                    for temp2 in key:
+                        if temp2[0] == data_temp:
+                            data_temp2 = temp2[1]
+                            break
+                    if data_temp2 == None:
+                        data_temp2 = '00'
+                if channel == '03':
+                    templist.append(str(int(data_temp, 16)))
+                elif channel == '08':
+                    templist.append(data_temp2)
+            BPM_list.append([node, templist])
+        return BPM_list
+    
+    def Parse_Node_Length(self): #마디 길이 읽기
+        self.Main_Data_Check()
+        Length_Data = list()
+        for temp in self.Main_Data:
+            if temp[1] == '02':
+                Length_Data.append([temp[0], temp[2]])
+        return Length_Data
+
+    def Parse_Sound(self):
+        self.Data_Check()
+        Key_Sound = list()
+        for temp_string in self.Data:
+            if temp_string.find('#WAV') != -1:
+                temp_string = temp_string.replace("#WAV", "")
+                Key_Sound.append([temp_string[0:2], temp_string[3:]])
+        return Key_Sound
+
+    def Load_Key_Sound(self):
+        return
+
+    def Load_BGM_Sound(self):
+        return
+
+    def Load_BPM(self):
+        return
+
+    def Parse_LongNote_LNTYPE1(self):
+        return
+
+    def Parse_LongNote_LNTYPE2(self):
+        return
+
+    def Parse_LongNote_LNOBJ(self):
+        return
+"""
     def Get_WAV(self):
         self.Data_Check()
         Wav_data = list()
@@ -198,15 +344,6 @@ class BMS_Parser:
                 temp_string = temp_string.replace("#BPM", "")
                 BPM_data.append([temp_string[0:2], temp_string[3:]])
         return BPM_data
-    
-    def Get_stop(self):
-        self.Data_Check()
-        Stop_data = list()
-        for temp_string in self.Data:
-            if temp_string.find('#STOP') != -1:
-                temp_string = temp_string.replace("#STOP", "")
-                Stop_data.append([temp_string[0:2], temp_string[3:]])
-        return Stop_data
 
     def Get_Node_length(self):
         temp_list = self.Get_note_data_channel('02')
@@ -273,14 +410,9 @@ class BMS_Parser:
         File.close()
         return track
 
-    def Get_note_data_bar(self, bar_number):
-        if not self.Note_Data:
-            self.Get_note_data()
-        track = self.Note_Data
-        bar_number = int(bar_number)
-        if bar_number >= len(track) or bar_number < 0:
-            return
-        return track[int(bar_number)]
+"""
+class BMS_Loader:
+    asd = 0
 
 def Screen_init(width, height, caption):
     Screen = pygame.display.set_mode((width, height))
@@ -290,215 +422,15 @@ def Screen_init(width, height, caption):
 def Resolution_calculate(value):
     return int(float(value) * (Width / 1280))
 
-def Song_select():
-    select_song = ''
-    select_song_index = 0
-    max_song_index = 0
-    select_song_file_index = 0
-    max_song_file_index = 0
-    song_list = Bundle.SongList_all()
-    song_file_list = list()
-    max_song_index = len(song_list)
-    is_file_select = False
-    while True:
-        screen.fill(BLACK)
-        if not is_file_select:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return
-                if event.type == pygame.KEYDOWN:
-                    key = pygame.key.get_pressed()
-                    if key[pygame.K_UP] == 1:
-                        if select_song_index - 1 >= 0:
-                            select_song_index = select_song_index - 1
-                        else:
-                            select_song_index = max_song_index - 1
-                    elif key[pygame.K_DOWN] == 1:
-                        if select_song_index + 1 < max_song_index :
-                            select_song_index = select_song_index + 1
-                        else:
-                            select_song_index = 0
-                    elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
-                        select_song_file_index = 0
-                        is_file_select = True
-                    elif key[pygame.K_ESCAPE] == 1:
-                        return
-            if max_song_index == 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-                text = fontObj.render('Empty', True, WHITE)
-                screen.blit(text, (0, Resolution_calculate(10)))
-                pygame.display.flip()
-                continue
-
-            List_num = 5
-            max_list_num = 5
-            while List_num > 0:
-                if select_song_index - List_num >= 0:
-                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-                    text = fontObj.render(song_list[select_song_index - List_num], True, WHITE)
-                    screen.blit(text, (0, Resolution_calculate(10 + (max_list_num - List_num) * 30)))
-                List_num = List_num - 1
-
-            fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(30))
-            text = fontObj.render(song_list[select_song_index], True, WHITE)
-            screen.blit(text, (Resolution_calculate(10), Resolution_calculate(10 + max_list_num * 30 + 40)))
-
-            while List_num < max_list_num:
-                List_num = List_num + 1
-                if select_song_index + List_num < max_song_index:
-                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-                    text = fontObj.render(song_list[select_song_index + List_num], True, WHITE)
-                    screen.blit(text, (0, Resolution_calculate(90 + (max_list_num + List_num) * 30)))
-        else:
-            song_file_list = Bundle.Get_script_file(song_list[select_song_index])
-            max_song_file_index = len(song_file_list)
-            if max_song_file_index == 0:
-                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-                text = fontObj.render('Empty', True, WHITE)
-                screen.blit(text, (0, Resolution_calculate(10)))
-                pygame.display.flip()
-                continue
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return
-                if event.type == pygame.KEYDOWN:
-                    key = pygame.key.get_pressed()
-                    if key[pygame.K_UP] == 1:
-                        if select_song_file_index - 1 >= 0:
-                            select_song_file_index = select_song_file_index - 1
-                        else:
-                            select_song_file_index = max_song_file_index - 1
-                    elif key[pygame.K_DOWN] == 1:
-                        if select_song_file_index + 1 < max_song_file_index :
-                            select_song_file_index = select_song_file_index + 1
-                        else:
-                            select_song_file_index = 0
-                    elif key[pygame.K_ESCAPE] == 1 or key[pygame.K_LEFT] == 1:
-                        is_file_select = False
-                    elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
-                        if max_song_file_index > 0:
-                            return Bundle.SongList_name(song_list[select_song_index]) + '\\' + song_file_list[select_song_file_index]
-
-            List_num = 5
-            max_list_num = 5
-            while List_num > 0:
-                if select_song_file_index - List_num >= 0:
-                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-                    text = fontObj.render(song_file_list[select_song_file_index - List_num], True, WHITE)
-                    screen.blit(text, (0, Resolution_calculate(10 + (max_list_num - List_num) * 30)))
-                List_num = List_num - 1
-
-            fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(30))
-            text = fontObj.render(song_file_list[select_song_file_index], True, WHITE)
-            screen.blit(text, (Resolution_calculate(10), Resolution_calculate(10 + max_list_num * 30 + 40)))
-
-            while List_num < max_list_num:
-                List_num = List_num + 1
-                if select_song_file_index + List_num < max_song_file_index:
-                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
-                    text = fontObj.render(song_file_list[select_song_file_index + List_num], True, WHITE)
-                    screen.blit(text, (0, Resolution_calculate(90 + (max_list_num + List_num) * 30)))
-        pygame.display.flip()
-    return
-
-class Line_Obj_class:
-    y = 0.0
-    node = 0
-    length = 0.0
-    def __init__(self, y, node, length):
-        self.y = float(y)
-        self.node = int(node)
-        self.length = length
-
-    def Add_y(self, plus):
-        self.y = float(self.y + plus)
-
-class Stop_Obj_class:
-    y = 0.0
-    duration = 0.0
-    def __init__(self, y, duration):
-        self.y = float(y)
-        self.duration = duration
-
-class Note_data_class:
-    channel = ''
-    sound = None
+class Data_class:
     position = 0.0
-    def __init__(self, sound, position, channel):
-        self.position = float(position)
-        if self.position > 1:
-            self.position = float(1)
-        elif self.position < 0:
-            self.position = float(0)
-        self.sound = sound
-        self.channel = channel
-
-class Stop_data_class:
-    position = 0.0
-    duration = 0.0
-    def __init__(self, position, duration):
-        self.position = float(position)
-        if self.position > 1:
-            self.position = float(1)
-        elif self.position < 0:
-            self.position = float(0)
-        self.duration = float(int(duration) / 192)
-        if self.duration < 0:
-            self.duration = 0
-
-class BPM_data_class:
-    position = 0.0
-    bpm = 0.0
-    def __init__(self, position, bpm):
-        self.position = float(position)
-        if self.position > 1:
-            self.position = float(1)
-        elif self.position < 0:
-            self.position = float(0)
-        self.bpm = float(bpm)
-
-class BPM_Obj_class:
-    y = 0.0
-    bpm = 0.0
-    def __init__(self, y, bpm):
-        self.y = float(y)
-        self.bpm = float(bpm)
-
-    def Add_y(self, plus):
-        self.y = float(self.y + plus)
-
-class Note_Obj_class:
-    channel = ''
-    sound = None
-    y = 0.0
-    def __init__(self, sound, y, channel):
-        self.y = float(y)
-        self.sound = sound
-        self.channel = channel
-    def Add_y(self, plus):
-        self.y = float(self.y + plus)
-
-class Long_Note:
     node = -1
-    channel = -1
-    start = float(-1)
-    end = float(-1)
-    sound = None
-    def __init__(self, node, channel, start, end, sound):
+    channel = ''
+    time = 0.0
+    def __init__(self, position, node, channel):
+        self.channel = channel;
         self.node = int(node)
-        self.channel = int(node)
-        self.start = float(start)
-        self.end = float(end)
-        self.sound = sound
-    def is_vaild(self):
-        if self.node < 0:
-            return False
-        if self.channel < 0:
-            return False
-        if self.start < 0:
-            return False
-        if self.end <= self.start:
-            return True
+        self.position = float(position)
 
 class Song_Play():
     select_song = ''
@@ -635,183 +567,6 @@ class Song_Play():
             node = node + 1
         return BPM
 
-    def Play(self):
-        self.BPM_read()
-        Speed = 1
-        End = False
-        Node = -1
-        clock = pygame.time.Clock()
-        is_stop = False
-        header = self.parser.Get_Header()
-        BPM = float(header[4][1])
-        time = float(240/BPM)
-        Node_count = 0
-
-        Line_Obj = list()
-        BPM_Obj = list()
-        Note_Obj = list()
-        Stop_Obj = list()
-
-        Stop_data = self.Stop_read()
-        BPM_data = self.BPM_read()
-        Note_data = self.Note_read()
-        Note_Length_data = self.parser.Get_Node_length()
-
-        Node_count = len(Note_data[0])
-
-        Length = 720 * Speed
-
-        sound_channel = 0
-        Max_sound_channel = 32
-
-        Line_Obj.append(Line_Obj_class(0, 0, Note_Length_data[0][1]))
-        for index1 in range(0, 9):
-            for temp1 in Note_data[index1][0]:
-                Note_Obj.append(Note_Obj_class(temp1.sound, float(temp1.position) * float(Length) * float(Line_Obj[0].length), temp1.channel))
-        for temp1 in BPM_data[0]:
-            BPM_Obj.append(BPM_Obj_class(float(temp1.position) * float(Length) * float(Line_Obj[0].length), temp1.bpm))
-        for temp1 in Stop_data[0]:
-            Stop_Obj.append(Stop_Obj_class(float(temp1.position) * float(Length) * float(Line_Obj[0].length), temp1.duration))
-
-        while not End:
-            screen.fill(BLACK)
-
-            for index1 in range(1, 8):
-                pygame.draw.line(self.screen, (100, 100, 100), [40 * index1, 0], [40 * index1, 600], 1)
-            pygame.draw.line(self.screen, WHITE, [0, 600], [280, 600], 2)
-
-            for temp1 in Line_Obj:
-                if temp1.y < 0:
-                    break
-                value = round(temp1.y)
-                pygame.draw.line(self.screen, WHITE, [0, value], [280, value], 1)
-
-            if len(Line_Obj) > 0:
-                if Line_Obj[-1].y >= 0:
-                    if not Line_Obj[-1].node >= Node_count - 1:
-                        #Add Line
-                        Line_Obj.append(Line_Obj_class(Line_Obj[-1].y - Length * float(Line_Obj[-1].length), Line_Obj[-1].node + 1, Note_Length_data[Line_Obj[-1].node][1]))
-                        #Add Note
-                        for index1 in range(0, 9):
-                            for temp1 in Note_data[index1][Line_Obj[-1].node]:
-                                Note_Obj.append(Note_Obj_class(temp1.sound, Line_Obj[-1].y - float(temp1.position) * Length * float(Line_Obj[-1].length), temp1.channel))
-
-                        #Add BPM
-                        for temp1 in BPM_data[Line_Obj[-1].node]:
-                            BPM_Obj.append(BPM_Obj_class(Line_Obj[-1].y - float(temp1.position) * Length * float(Line_Obj[-1].length), temp1.bpm))
-
-                        #Add Stop
-                        for temp1 in Stop_data[Line_Obj[-1].node]:
-                            Stop_Obj.append(Stop_Obj_class(Line_Obj[-1].y - float(temp1.position) * Length * float(Line_Obj[-1].length), temp1.duration))
-                    else:
-                        End = True
-
-            for temp1 in Note_Obj:
-                value = round(temp1.y)
-                if value >= 0:
-                    position = 0
-                    color = WHITE
-                    if int(temp1.channel) == 11:
-                        position = 1
-                        color = WHITE
-                    elif int(temp1.channel) == 12:
-                        position = 2
-                        color = BLUE
-                    elif int(temp1.channel) == 13:
-                        position = 3
-                        color = WHITE
-                    elif int(temp1.channel) == 14:
-                        position = 4
-                        color = YELLOW
-                    elif int(temp1.channel) == 15:
-                        position = 5
-                        color = WHITE
-                    elif int(temp1.channel) == 16:
-                        position = 0
-                        color = RED
-                    elif int(temp1.channel) == 18:
-                        position = 6
-                        color = BLUE
-                    elif int(temp1.channel) == 19:
-                        position = 7
-                        color = WHITE
-                    pygame.draw.line(self.screen, color, [position * 40, value], [(position + 1) * 40, value], 4)
-
-            for temp1 in Line_Obj:
-                temp1.Add_y(float(Length / time / Frame))
-                if temp1.y >= 600:
-                    Node = temp1.node
-                    Line_Obj.remove(temp1)
-
-            for temp1 in Note_Obj:
-                temp1.Add_y(float(Length / time / Frame))
-                if temp1.y >= 600:
-                    if temp1.sound != None:
-                        pygame.mixer.Channel(sound_channel).play(temp1.sound)
-                        sound_channel = sound_channel + 1
-                        if sound_channel >= Max_sound_channel:
-                            sound_channel = 0
-                    Note_Obj.remove(temp1)
-
-            for temp1 in Stop_Obj:
-                temp1.Add_y(float(Length / time / Frame))
-                if temp1.y >= 600:
-                    count = round(float(temp1.duration) / Frame)
-                    for index1 in range(0, count):
-                        screen.fill(BLACK)
-                        for index2 in range(1, 8):
-                            pygame.draw.line(self.screen, (100, 100, 100), [40 * index2, 0], [40 * index2, 600], 1)
-                        pygame.draw.line(self.screen, WHITE, [0, 600], [280, 600], 2)
-                        for temp2 in Line_Obj:
-                            if temp2.y < 0:
-                                break
-                            value = round(temp2.y)
-                            pygame.draw.line(self.screen, WHITE, [0, value], [280, value], 1)
-                        for temp2 in Note_Obj:
-                            value = round(temp2.y)
-                            if value >= 0:
-                                position = 0
-                                color = WHITE
-                                if int(temp2.channel) == 11:
-                                    position = 1
-                                    color = WHITE
-                                elif int(temp2.channel) == 12:
-                                    position = 2
-                                    color = BLUE
-                                elif int(temp2.channel) == 13:
-                                    position = 3
-                                    color = WHITE
-                                elif int(temp2.channel) == 14:
-                                    position = 4
-                                    color = YELLOW
-                                elif int(temp2.channel) == 15:
-                                    position = 5
-                                    color = WHITE
-                                elif int(temp2.channel) == 16:
-                                    position = 0
-                                    color = RED
-                                elif int(temp2.channel) == 18:
-                                    position = 6
-                                    color = BLUE
-                                elif int(temp2.channel) == 19:
-                                    position = 7
-                                    color = WHITE
-                                pygame.draw.line(self.screen, color, [position * 40, value], [(position + 1) * 40, value], 4)
-                        pygame.display.flip()
-                        clock.tick(Frame)
-                    Stop_Obj.remove(temp1)
-
-            for temp1 in BPM_Obj:
-                temp1.Add_y(float(Length / time / Frame))
-                if temp1.y >= 600:
-                    BPM = float(temp1.bpm)
-                    time = float(240/BPM)
-                    BPM_Obj.remove(temp1)
-
-            pygame.display.flip()
-            clock.tick(Frame)
-        return
-
 pygame.mixer.pre_init(22050, -16, 2, 128)
 pygame.mixer.init()
 pygame.init()
@@ -820,24 +575,7 @@ screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
-p = BMS_Parser('')
-esc = False
-print("asd")
-while not esc:
-    a = Song_select()
-    if a == None:
-        esc = True
-    else:
-        p.Set_file_directory(a)
-        ttemp = p.Get_note_data()
-        s = Song_Play(a, screen)
-        s.Play()
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                esc = True
-            if event.type == pygame.KEYDOWN:
-                key = pygame.key.get_pressed()
-                if key[pygame.K_ESCAPE]:
-                    esc = True
-    clock.tick(Frame)
+p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
+lll = p.Parse_Sound()
+for qwer in lll:
+    print(qwer)
