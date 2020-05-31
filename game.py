@@ -1,6 +1,7 @@
 import os
 import pygame
 import time
+import random
 
 Frame = 144
 Height = 720
@@ -77,11 +78,23 @@ class Bundle:
             file_list[file_list.index(temp_dir)] = file_dir + '\\' + temp_dir
         return file_list
 
+class Note:
+    def __init__(self):
+        return
+    node = 0
+    next = None
+    position = 0.0
+    timing = 0.0
+    channel = '00'
+    sound = None
+    data = '00'
+
 class BMS_Parser:
     file_dir = ''
     folder_dir = ''
     Data = list() #.bms, .bml 파일 전체
     Main_Data = list() #XXXXX: ~~ 부분만, [Node, Channel, Data] 로 구성
+    LongNote_Type = 0 #1 => LNTYPE 1 , 2 => LNTYPE 2 , 3 => LNOBJ
 
     def __init__(self, file_directory):
         self.file_dir = file_directory
@@ -170,11 +183,35 @@ class BMS_Parser:
                 Header_data[12][1] = temp_string.replace("#BMP ", "")
         return Header_data
     
-    def Parse_Main_Data(self): #Main_Data 읽기
+    def Parse_Main_Data(self): #Main_Data 읽기 , [node, channel, data]
         self.Main_Data.clear()
         self.Data_Check()
         Data_list = list()
+        IsIgnore = False
+        ignoreElse = False
+        randomValue = -1
         for temp_string in self.Data:
+            if temp_string.find('#RANDOM ') != -1:
+                temp_string = temp_string.replace("#RANDOM ", "")
+                randomValue = random.randint(1, int(temp_string))
+                continue
+            if temp_string.find('#ENDIF') != -1:
+                IsIgnore = False
+                continue
+            if temp_string.find('#IF') != -1:
+                temp_string = temp_string.replace("#IF ", "")
+                if int(temp_string) != randomValue:
+                    IsIgnore = True
+                else:
+                    ignoreElse = True
+                continue
+            if temp_string.find('#ELSE') != -1:
+                if ignoreElse:
+                    IsIgnore = True
+                continue
+            if IsIgnore:
+                continue
+
             if temp_string[6] != ':':
                 continue
             node = temp_string[1:4]
@@ -224,7 +261,7 @@ class BMS_Parser:
         self.Data_Check()
         BPM = None
         for temp_string in self.Data:
-            if temp_string.find('#BPM ') == -1:
+            if temp_string.find('#BPM ') != -1:
                 temp_string = temp_string.replace("#BPM ", "")
                 BPM_data = temp_string
                 break
@@ -243,7 +280,7 @@ class BMS_Parser:
                 exBPM_data.append([BPM_Num, data])
         return exBPM_data
 
-    def Parse_Extended_BPM(self):
+    def Parse_Extended_BPM(self): #확장 BPM 읽기 (08채널, 03채널)
         self.Main_Data_Check()
         Start_BPM = self.Parse_Start_BPM()
         Data_list = list()
@@ -284,7 +321,7 @@ class BMS_Parser:
                 Length_Data.append([temp[0], temp[2]])
         return Length_Data
 
-    def Parse_Sound(self):
+    def Parse_Sound(self): # #WAV 읽기
         self.Data_Check()
         Key_Sound = list()
         for temp_string in self.Data:
@@ -293,19 +330,126 @@ class BMS_Parser:
                 Key_Sound.append([temp_string[0:2], temp_string[3:]])
         return Key_Sound
 
-    def Load_Key_Sound(self):
-        return
+    def Load_Key_Sound(self): #mp3, wav, ogg 파일 로드 ['XX', sound오브젝트]
+        load_wav = list()
+        file_data = self.Parse_Sound()
+        wav_dir = self.folder_dir[self.folder_dir.find('Bundle'):] + '\\'
+        for wav in file_data:
+            sound = None
+            dir_temp = wav_dir + wav[1]
+            if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
+                wav[1] = wav[1].replace(".wav", ".ogg")
+                if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
+                    dir_temp = wav_dir + wav[1]
+                    sound = pygame.mixer.Sound(dir_temp)
+            else:
+                sound = pygame.mixer.Sound(dir_temp)
+            load_wav.append([wav[0], sound])
+        return load_wav
 
-    def Load_BGM_Sound(self):
-        return
+    def Get_LNOBJ_Type(self):
+        self.Data_Check()
+        for temp_string in self.Data:
+            if temp_string.find('#LNOBJ ') != -1:
+                return temp_string
+            elif temp_string.find('#LNTYPE 2') != -1:
+                return temp_string
+            elif temp_string.find('#LNTYPE 1') != -1:
+                return temp_string
+        return ''
 
-    def Load_BPM(self):
-        return
+
+    def Parse_Note(self):
+        self.Main_Data_Check()
+        data_list = list()
+        Player1_channel = list()
+        Player2_channel = list()
+        Key_sound = self.Load_Key_Sound()
+
+        LNOBJ_type = self.Get_LNOBJ_Type()
+        LNOBJ_data = ''
+        if LNOBJ_type.find('#LNOBJ ') != -1:
+            LNOBJ_type = 3
+            LNOBJ_data = LNOBJ_type[7:]
+        elif LNOBJ_type.find('#LNTYPE 2') != -1:
+            LNOBJ_type = 2
+        else:
+            LNOBJ_type = 1
+        channel_divided = list() #[channel, list()]
+        Processed_Data = list()
+        for temp in self.Main_Data:
+            if temp[1][0] != '1' and temp[1][0] != '2' and  temp[1][0] != '5' and temp[1][0] != '6':
+                continue
+            channel_found  = False
+            for temp_channel in channel_divided:
+                if temp[1] == temp_channel[0]:
+                    channel_found = True
+            if not channel_found:
+                channel_divided.append([temp[1], list()])
+            for temp_channel in channel_divided:
+                if temp[1] == temp_channel[0]:
+                    temp_channel[1].append(temp)
+                    break
+        for DataList in channel_divided:
+            Prev_note = None
+            Prev_data = ''
+            temp_Processed = list()
+            count = 0
+            for temp in DataList[1]:
+                data = temp[2]
+                note_obj = None
+                max_index = int(len(data) / 2)
+                index = 0
+                while len(data) > 0:
+                    if data[0:2] == '00':
+                        index = index + 1
+                        data = data[2:]
+                        continue
+
+                    note_obj = Note()
+                    note_obj.data = data[0:2]
+                    
+                    for sound_temp in Key_sound:
+                        if sound_temp[0] == note_obj.data:
+                            note_obj.sound = sound_temp[1]
+                            break
+                    if Prev_note != None:
+                        if LNOBJ_type == 3 and note_obj.data == LNOBJ_data:
+                            Prev_note.next = note_obj
+                    if DataList[0][0] == '5' or DataList[0][0] == '6':
+                        if LNOBJ_type == 2:
+                            if Prev_note.data == note_obj.data and Prev_data != note_obj.data:
+                                Prev_note.next = note_obj
+                            temp_note = Note()
+                            temp_note.node = temp[0]
+                            temp_note.channel = temp[1]
+                            temp_note.position = float((index + 1) / max_index)
+                            note_obj.next = temp_note
+                        elif LNOBJ_type == 1:
+                            if Prev_note != None:
+                                if Prev_note.next == None and count % 2 == 1:
+                                    Prev_note.next = note_obj
+                    
+                    note_obj.position = float(index / max_index)
+                    note_obj.node = temp[0]
+                    note_obj.channel = temp[1]
+                    index = index + 1
+                    Prev_note = note_obj
+                    Prev_data = note_obj.data
+                    temp_Processed.append(note_obj)
+                    count = count + 1
+                    data = data[2:]
+            data_list.append([DataList[0], temp_Processed])
+        return data_list
 
     def Parse_LongNote_LNTYPE1(self):
+        self.Main_Data_Check()
+        
         return
 
     def Parse_LongNote_LNTYPE2(self):
+        self.Main_Data_Check()
+
         return
 
     def Parse_LongNote_LNOBJ(self):
@@ -422,151 +566,6 @@ def Screen_init(width, height, caption):
 def Resolution_calculate(value):
     return int(float(value) * (Width / 1280))
 
-class Data_class:
-    position = 0.0
-    node = -1
-    channel = ''
-    time = 0.0
-    def __init__(self, position, node, channel):
-        self.channel = channel;
-        self.node = int(node)
-        self.position = float(position)
-
-class Song_Play():
-    select_song = ''
-    parser = BMS_Parser('')
-    screen = None
-    def __init__(self, song_file_directory, screen):
-        self.select_song = song_file_directory
-        self.parser.Set_file_directory(song_file_directory)
-        self.screen = screen
-
-    def Note_read(self): #Note[channel][Node] || Load Note Data
-        Note = list()
-        Sound = self.parser.Load_WAV()
-        for index1 in range(0, 9):
-            Note_data = self.parser.Get_note_data_channel(11 + index1)
-            node = 0
-            Note.append(list())
-            while len(Note_data) > node:
-                Note[index1].append(list())
-                if Note_data[node] == []:
-                    node = node + 1
-                    continue
-                temp_str = Note_data[node][0]
-                count = len(temp_str[1]) // 2
-
-                for index2 in range(0, count):
-                    s = str(temp_str[1][index2*2 : index2*2+2])
-                    found = False
-                    if s == '00':
-                        continue
-                    for sound_obj in Sound:
-                        if sound_obj[0] == s:
-                            found = True
-                            Note[index1][node].append(Note_data_class(sound_obj[1], float(index2 / count), 11 + index1))
-                            break
-                    if not found:
-                        Note[index1][node].append(Note_data_class(None, float(index2 / count), 11 + index1))
-                node = node + 1
-        return Note
-    
-    def Stop_read(self):
-        Stop = list()
-        Stop_data = self.parser.Get_stop()
-        node = 0
-        Note_data = self.parser.Get_note_data_channel('09')
-        while len(Note_data) > node:
-            Stop.append(list())
-            if Note_data[node] == []:
-                node = node + 1
-                continue
-            temp_str = Note_data[node][0]
-            count = len(temp_str[1]) // 2
-            for index1 in range(0, count):
-                s = str(temp_str[1][index1*2 : index1*2+2])
-                if s == '00':
-                    continue
-                for index2 in range(0, len(Stop_data)):
-                    if s == Stop_data[index2][0]:
-                        Stop[node].append(Stop_data_class(float(index1 / count), Stop_data[index2][1]))
-                        break
-            node = node + 1
-        return Stop
-
-    def BPM_read(self):
-        BPM = list()
-        node = 0
-        BPM_data = self.parser.Get_BPM()
-        Note_data1 = self.parser.Get_note_data_channel('08')
-        Note_data2 = self.parser.Get_note_data_channel('03')
-        while len(Note_data1) > node:
-            BPM.append(list())
-            if Note_data1[node] == [] and Note_data2[node] == []:
-                node = node + 1
-                continue
-            elif Note_data1[node] != [] and Note_data2[node] == []:
-                temp_str1 = Note_data1[node][0]
-                count = len(temp_str1[1]) // 2
-                for index1 in range(0, count):
-                    s = str(temp_str1[1][index1*2 : index1*2+2])
-                    if s == '00':
-                        continue
-                    for index2 in range(0, len(BPM_data)):
-                        if s == BPM_data[index2][0]:
-                            BPM[node].append(BPM_data_class(float(index1 / count), BPM_data[index2][1]))
-                            break
-            elif Note_data1[node] == [] and Note_data2[node] != []:
-                temp_str1 = Note_data2[node][0]
-                count = len(temp_str1[1]) // 2
-                for index1 in range(0, count):
-                    s = str(temp_str1[1][index1*2 : index1*2+2])
-                    if s == '00':
-                        continue
-                    BPM[node].append(BPM_data_class(float(index1 / count), int('0x' + s, 16)))
-            else:
-                BPM_temp1 = list()
-                temp_str1 = Note_data2[node][0]
-                count = len(temp_str1[1]) // 2
-                for index1 in range(0, count):
-                    s = str(temp_str1[1][index1*2 : index1*2+2])
-                    if s == '00':
-                        continue
-                    BPM_temp1.append(BPM_data_class(float(index1 / count), int('0x' + s, 16)))
-                temp_str1 = Note_data1[node][0]
-                count = len(temp_str1[1]) // 2
-                BPM_temp2 = list()
-                for index1 in range(0, count):
-                    s = str(temp_str1[1][index1*2 : index1*2+2])
-                    if s == '00':
-                        continue
-                    for index2 in range(0, len(BPM_data)):
-                        if s == BPM_data[index2][0]:
-                            BPM_temp2.append(BPM_data_class(float(index1 / count), BPM_data[index2][1]))
-                            break
-                while len(BPM_temp1) > 0 or len(BPM_temp2) > 0:
-                    if len(BPM_temp1) > 0 and len(BPM_temp2) > 0:
-                        if BPM_temp1[0].position > BPM_temp2[0].position:
-                            temp = BPM_temp2[0]
-                            BPM[node].append(temp)
-                            BPM_temp2.remove(temp)
-                        else:
-                            temp = BPM_temp1[0]
-                            BPM[node].append(temp)
-                            BPM_temp1.remove(temp)
-                    elif len(BPM_temp1) <= 0:
-                        while len(BPM_temp2) > 0:
-                            temp = BPM_temp2[0]
-                            BPM[node].append(temp)
-                            BPM_temp2.remove(temp)
-                    else:
-                        while len(BPM_temp1) > 0:
-                            temp = BPM_temp1[0]
-                            BPM[node].append(temp)
-                            BPM_temp1.remove(temp)
-            node = node + 1
-        return BPM
-
 pygame.mixer.pre_init(22050, -16, 2, 128)
 pygame.mixer.init()
 pygame.init()
@@ -575,7 +574,14 @@ screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
-p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
-lll = p.Parse_Sound()
-for qwer in lll:
-    print(qwer)
+p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
+lll = p.Parse_Note()
+print(p.Get_LNOBJ_Type())
+temp = lll[1]
+print(temp[0])
+for ttemp in temp[1]:
+    if ttemp.next != None:
+        print('position = ' + str(int(ttemp.node) + ttemp.position))
+        print('next.position = ' + str(int(ttemp.next.node) + ttemp.next.position))
+        print('')
+    
