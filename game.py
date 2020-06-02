@@ -347,7 +347,7 @@ class BMS_Parser:
             load_wav.append([wav[0], sound])
         return load_wav
 
-    def Get_LNOBJ_Type(self):
+    def Parse_LNOBJ_Type(self):
         self.Data_Check()
         for temp_string in self.Data:
             if temp_string.find('#LNOBJ ') != -1:
@@ -358,15 +358,27 @@ class BMS_Parser:
                 return temp_string
         return ''
 
+    def Parse_Node_Length(self):
+        self.Main_Data_Check()
+        List = list()
+        index = 0
+        for temp in self.Main_Data:
+            if temp[1] == '02':
+                while len(List) < int(temp[0]):
+                    List.append([index, float(1)])
+                    index = index + 1
+                List.append([int(temp[0]), float(temp[2])])
+                index = index + 1
+        return List
 
-    def Parse_Note(self):
+    def Get_Note(self):
         self.Main_Data_Check()
         data_list = list()
         Player1_channel = list()
         Player2_channel = list()
         Key_sound = self.Load_Key_Sound()
 
-        LNOBJ_type = self.Get_LNOBJ_Type()
+        LNOBJ_type = self.Parse_LNOBJ_Type()
         LNOBJ_data = ''
         if LNOBJ_type.find('#LNOBJ ') != -1:
             LNOBJ_type = 3
@@ -402,6 +414,7 @@ class BMS_Parser:
                 index = 0
                 while len(data) > 0:
                     if data[0:2] == '00':
+                        Prev_data = '00'
                         index = index + 1
                         data = data[2:]
                         continue
@@ -418,8 +431,9 @@ class BMS_Parser:
                             Prev_note.next = note_obj
                     if DataList[0][0] == '5' or DataList[0][0] == '6':
                         if LNOBJ_type == 2:
-                            if Prev_note.data == note_obj.data and Prev_data != note_obj.data:
-                                Prev_note.next = note_obj
+                            if Prev_note != None:
+                                if Prev_note.data == note_obj.data and Prev_data == note_obj.data:
+                                    Prev_note.next = note_obj
                             temp_note = Note()
                             temp_note.node = temp[0]
                             temp_note.channel = temp[1]
@@ -429,132 +443,61 @@ class BMS_Parser:
                             if Prev_note != None:
                                 if Prev_note.next == None and count % 2 == 1:
                                     Prev_note.next = note_obj
+                                    temp_note = Note()
+                                    temp_note.node = temp[0]
+                                    temp_note.channel = temp[1]
+                                    temp_note.position = float((index + 1) / max_index)
+                                    note_obj.next = temp_note
                     
                     note_obj.position = float(index / max_index)
                     note_obj.node = temp[0]
                     note_obj.channel = temp[1]
                     index = index + 1
-                    Prev_note = note_obj
-                    Prev_data = note_obj.data
-                    temp_Processed.append(note_obj)
+                    if not (LNOBJ_type == 3 and Prev_note.next == note_obj):
+                        temp_Processed.append(note_obj)
                     count = count + 1
                     data = data[2:]
-            data_list.append([DataList[0], temp_Processed])
+                    Prev_note = note_obj
+                    Prev_data = note_obj.data
+            
+            for temp_note in temp_Processed:
+                if temp_note.next == None:
+                    continue
+                while temp_note.next.next != None:
+                    temp_Processed.remove(temp_note.next)
+                    temp_note.next = temp_note.next.next
+            data_list.append([DataList[0], sorted(temp_Processed, key=lambda note: float(note.node) + float(note.position))])
+
         return data_list
 
-    def Parse_LongNote_LNTYPE1(self):
-        self.Main_Data_Check()
-        
-        return
-
-    def Parse_LongNote_LNTYPE2(self):
-        self.Main_Data_Check()
-
-        return
-
-    def Parse_LongNote_LNOBJ(self):
-        return
-"""
-    def Get_WAV(self):
-        self.Data_Check()
-        Wav_data = list()
-        for temp_string in self.Data:
-            if temp_string.find('#WAV') != -1:
-                    temp_string = temp_string.replace("#WAV", "")
-                    Wav_data.append([temp_string[0:2], temp_string[3:]])
-        return Wav_data
-
-    def Load_WAV(self):
-        wav_file = self.Get_WAV()
-        load_wav = list()
-        wav_dir = self.folder_dir[self.folder_dir.find('Bundle'):] + '\\'
-        for wav in wav_file:
-            if wav[1].find(".mp3") != -1:
-                sound = None
-                load_wav.append([str(wav[0]), sound])
-                continue
-            dir_temp = wav_dir + wav[1]
-            if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
-                dir_temp = dir_temp.replace(".wav", ".ogg")
-            sound = pygame.mixer.Sound(dir_temp)
-            load_wav.append([str(wav[0]), sound])
-        return load_wav
-    
-    def Get_BPM(self):
-        self.Data_Check()
-        BPM_data = list()
-        for temp_string in self.Data:
-            if temp_string.find('#BPM') != -1 and temp_string.find('#BPM ') == -1:
-                temp_string = temp_string.replace("#BPM", "")
-                BPM_data.append([temp_string[0:2], temp_string[3:]])
-        return BPM_data
-
-    def Get_Node_length(self):
-        temp_list = self.Get_note_data_channel('02')
+    def Get_Node_Length(self): #[[Node, 길이], [Node, 누적길이]]
         List = list()
-        index = 0
-        for temp in temp_list:
-            if len(temp) <= 0 or temp == []:
-                List.append([index, '1'])
-                index = index + 1
-                continue
-            temp = temp[0]
-            List.append([index, temp[1]])
-            index = index + 1
+        List.append(self.Parse_Node_Length())
+        List.append(list())
+        sum = 0.0
+        for temp in List[0]:
+            sum = sum + temp[1]
+            List[1].append([temp[0], sum])
         return List
 
-    def Get_Long_note(self):
-        return
-        
-    def Get_Normal_note(self):
-        
-        return
-    
-    def Get_note_data(self):
-        self.Note_Data.clear()
-        self.Data_Check()
-        for temp_string in self.Data:
-            if temp_string[6] != ':':
-                continue
-            index = int(temp_string[1:4])
-            while len(self.Note_Data) <= index:
-                self.Note_Data.append([])
-            self.Note_Data[index].append([temp_string[4:6], temp_string[7:]]) 
-        return self.Note_Data
+    def Get_BPM(self):
+        bpm = self.Parse_Extended_BPM()
+        List = list()
+        for temp in bpm:
+            index = -1
+            note_obj = Note()
+            for ttemp in temp[1]:
+                index = index + 1
+                if ttemp == '00' or ttemp == '0':
+                    continue
+                note_obj = Note()
+                note_obj.data = float(ttemp)
+                note_obj.node = int(temp[0])
+                note_obj.position = float(index / len(temp[1]))
+                List.append(note_obj)
+        List = sorted(List, key=lambda note: float(note.node + note.position))
+        return List
 
-    def Get_note_data_channel(self, channel):
-        if (self.file_dir == ''): 
-            return
-        channel = str(channel)
-        if len(channel) > 2 or len(channel) == 0:
-            return        
-        elif len(channel) == 1:
-            channel = '0' + channel
-        track = list()
-        File = open(self.file_dir, 'r')
-        temp_string = File.readline()
-        while temp_string != '' and temp_string.find('MAIN DATA FIELD') == -1:
-            temp_string = File.readline()
-            if not temp_string: 
-                break
-        while temp_string != '':
-            temp_string = File.readline()
-            if not temp_string: 
-                break
-            if temp_string.find('#') == -1:
-                continue
-            if temp_string[6] != ':':
-                continue
-            temp_string = temp_string.replace('\n', '')
-            index = int(temp_string[1:4])
-            while len(track) <= index:
-                track.append([])
-            if temp_string[4:6] == channel:
-                track[index].append([temp_string[4:6], temp_string[7:]])
-        File.close()
-        return track
-
-"""
 class BMS_Loader:
     asd = 0
 
@@ -575,13 +518,14 @@ pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
 p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
-lll = p.Parse_Note()
-print(p.Get_LNOBJ_Type())
-temp = lll[1]
-print(temp[0])
-for ttemp in temp[1]:
-    if ttemp.next != None:
-        print('position = ' + str(int(ttemp.node) + ttemp.position))
-        print('next.position = ' + str(int(ttemp.next.node) + ttemp.next.position))
-        print('')
-    
+lll = p.Get_Note()
+lll = lll[0]
+for temp in lll[1]:
+    print(str(temp.position + float(temp.node)))
+
+
+"""
+lll = p.Get_BPM()
+for temp in lll:
+    print("p = " + str(float(temp.node) + temp.position) + ', data = ' + str(temp.data))
+"""
