@@ -95,6 +95,7 @@ class BMS_Parser:
     Data = list() #.bms, .bml 파일 전체
     Main_Data = list() #XXXXX: ~~ 부분만, [Node, Channel, Data] 로 구성
     LongNote_Type = 0 #1 => LNTYPE 1 , 2 => LNTYPE 2 , 3 => LNOBJ
+    MaxNode = 0
 
     def __init__(self, file_directory):
         self.file_dir = file_directory
@@ -105,6 +106,13 @@ class BMS_Parser:
                 break
             else:
                 self.folder_dir = self.folder_dir[0:-1]
+
+    def Reset(self):
+        self.file_dir = ''
+        self.folder_dir = ''
+        self.Data = self.Data.clear()
+        self.Main_Data = self.Main_Data.clear()
+        self.LongNote_Type = 0
 
     def Set_file_directory(self, directory):
         self.file_dir = directory
@@ -117,11 +125,11 @@ class BMS_Parser:
                 self.folder_dir = self.folder_dir[0:-1]
 
     def Data_Check(self): #Data 리스트 체크
-        if not self.Data:
+        if self.Data == None or len(self.Data) <= 0:
             self.Read_Data()
 
     def Main_Data_Check(self): #Main_Data 리스트 체크
-        if not self.Data:
+        if self.Main_Data == None or len(self.Main_Data) <= 0:
             self.Parse_Main_Data()
 
     def Read_Data(self): #파일 전체 읽기 / #으로 시작하는 부분만 저장
@@ -215,6 +223,8 @@ class BMS_Parser:
             if temp_string[6] != ':':
                 continue
             node = temp_string[1:4]
+            if int(node) > self.MaxNode:
+                self.MaxNode = int(node)
             channel = temp_string[4:6]
             data = temp_string[7:]
             Data_list.append([node, channel, data])
@@ -257,6 +267,23 @@ class BMS_Parser:
             Stop_Data.append([node, templist])
         return Stop_Data
 
+    def Parse_Stp(self):
+        self.Data_Check()
+        Stop_list = list()
+        for temp in self.Data:
+            if temp.find('#STP') != -1:
+                temp = temp.replace("#STP", 0)
+                node = temp[0:3]
+                position = float(int(temp[4:7]) / 1000)
+                data = float(int(temp[8:]) / 1000)
+                note_obj = Note()
+                note_obj.node = node
+                note_obj.channel = '09'
+                note_obj.position = position
+                note_obj.data = data
+                Stop_list.append(note_obj)
+        return Stop_list
+
     def Parse_Start_BPM(self): #시작 BPM 읽기
         self.Data_Check()
         BPM = None
@@ -264,6 +291,7 @@ class BMS_Parser:
             if temp_string.find('#BPM ') != -1:
                 temp_string = temp_string.replace("#BPM ", "")
                 BPM_data = temp_string
+                BPM = float(BPM_data)
                 break
         if BPM == None:
             BPM = '130'
@@ -369,6 +397,9 @@ class BMS_Parser:
                     index = index + 1
                 List.append([int(temp[0]), float(temp[2])])
                 index = index + 1
+        while len(List) < self.MaxNode:
+            List.append([index, float(1)])
+            index = index + 1
         return List
 
     def Get_Note(self):
@@ -480,6 +511,32 @@ class BMS_Parser:
             List[1].append([temp[0], sum])
         return List
 
+    def Get_Stop(self):
+        Data = self.Parse_Stop()
+        BPM_list = self.Get_BPM()
+        BPM = float(self.Parse_Start_BPM())
+        stop_list = list()
+        for temp in Data:
+            max_index = int(len(temp[1]) / 2)
+            data = temp[1]
+            index = 0
+            for ttemp in data:
+                note_obj = Note()
+                note_obj.channel = '09'
+                note_obj.node = temp[0]
+                note_obj.position = float(index / max_index)
+                for bpm in BPM_list:
+                    if float(bpm.position) + float(bpm.node) <= float(note_obj.node) + float(note_obj.position):
+                        BPM = float(bpm.data)
+                note_obj.data = float(int(ttemp) / 192 * BPM / 60)
+                stop_list.append(note_obj)
+                index = index + 1
+        temp = self.Parse_Stp()
+        for ttemp in temp:
+            stop_list.append(ttemp)
+        stop_list = sorted(stop_list, key=lambda note: float(note.node) + float(note.position))
+        return stop_list
+
     def Get_BPM(self):
         bpm = self.Parse_Extended_BPM()
         List = list()
@@ -498,8 +555,89 @@ class BMS_Parser:
         List = sorted(List, key=lambda note: float(note.node + note.position))
         return List
 
-class BMS_Loader:
-    asd = 0
+    def Set_Note_Timing(self):
+        self.Data_Check()
+        self.Main_Data_Check()
+        StartBPM = float(self.Parse_Start_BPM())
+        BPM = StartBPM
+        BPM_list = self.Get_BPM()
+        Stop = self.Get_Stop()
+        Length = self.Get_Node_Length()
+        Prev_length = 0.0
+        Prev_timing = None
+        for temp in BPM_list:
+            length = 0.0
+            temp.timing = 0.0
+            node = int(temp.node)
+            length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(temp.position))
+            lengthTemp = length
+            length = length - Prev_length
+            Prev_length = lengthTemp
+            if Prev_timing == None:
+                temp.timing = float(BPM / 60 * length)
+            else:
+                temp.timing = float(BPM / 60 * length) + Prev_timing.timing
+            Prev_timing = temp
+            BPM = float(temp.data)
+        for temp in Stop:
+            BPM = StartBPM
+            temp_BPM = None
+            for ttemp in BPM_list:
+                if float(ttemp.node) + float(ttemp.position) <= float(temp.node) + float(temp.position):
+                    temp_BPM = ttemp
+                    BPM = float(ttemp.data)
+                else:
+                    break
+            node = int(temp.node)
+            length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(temp.position))
+            if temp_BPM != None:
+                temp.timing = float(BPM / 60 * length)
+            else:
+                length = length - float(Length[1][temp_BPM.node] - Length[0][temp_BPM.node] * (1 - temp_BPM.position))
+                temp.timing = float(BPM / 60 * length) + temp_BPM.timing
+        asdf = list()
+        asdf.append(BPM_list)
+        asdf.append(Stop)
+        return asdf
+
+class BMS_Player:
+    position = 0.0
+    BPM = 0.0
+    Frame = 100
+    speed = 2.0
+
+    Note_data = None
+    Stop_data = None
+    BPM_data = None
+    BGM_data = None
+    Length_data = None
+
+    Parser = BMS_Parser('')
+
+    def Move(self):
+        self.position = self.position + float(self.BPM / 60 / Frame)
+
+    def Draw_Note(self, screen):
+        End = False
+        clock = pygame.time.Clock()
+        while not End:
+            self.Move()
+            
+            screen.fill(BLACK)
+
+            for index1 in range(1, 8):
+                pygame.draw.line(screen, WHITE, [40 * index1 , 0], [40 * index1, 600], 1)
+            pygame.draw.line(screen, WHITE, [0, 600], [280, 600], 2)
+            for ttemp in self.Length_data[1]:
+                if float(ttemp[1]) - self.position < 0:
+                    continue
+                if float(ttemp[1]) - self.position > 1 / self.speed:
+                    break
+                pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
+
+            pygame.display.flip()
+            clock.tick(self.Frame)
+        return
 
 def Screen_init(width, height, caption):
     Screen = pygame.display.set_mode((width, height))
@@ -518,12 +656,11 @@ pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
 p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
-lll = p.Get_Note()
-lll = lll[0]
-for temp in lll[1]:
-    print(str(temp.position + float(temp.node)))
-
-
+PPP = BMS_Player()
+PPP.Length_data = p.Get_Node_Length()
+PPP.BPM = float(p.Parse_Start_BPM())
+listTemp = p.Get_Note()
+PPP.Draw_Note(screen)
 """
 lll = p.Get_BPM()
 for temp in lll:
