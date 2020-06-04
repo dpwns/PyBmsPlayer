@@ -88,6 +88,7 @@ class Note:
     channel = '00'
     sound = None
     data = '00'
+    Absolute_position = 0.0
 
 class BMS_Parser:
     file_dir = ''
@@ -136,7 +137,7 @@ class BMS_Parser:
         self.Data.clear()
         if self.file_dir == '': 
             return
-        File = open(self.file_dir, 'r')
+        File = open(self.file_dir, 'r', encoding='UTF8')
         temp_string = File.readline()
         while temp_string != '':
             temp_string = temp_string.replace('\n', '')
@@ -412,8 +413,8 @@ class BMS_Parser:
         LNOBJ_type = self.Parse_LNOBJ_Type()
         LNOBJ_data = ''
         if LNOBJ_type.find('#LNOBJ ') != -1:
-            LNOBJ_type = 3
             LNOBJ_data = LNOBJ_type[7:]
+            LNOBJ_type = 3
         elif LNOBJ_type.find('#LNTYPE 2') != -1:
             LNOBJ_type = 2
         else:
@@ -421,8 +422,6 @@ class BMS_Parser:
         channel_divided = list() #[channel, list()]
         Processed_Data = list()
         for temp in self.Main_Data:
-            if temp[1][0] != '1' and temp[1][0] != '2' and  temp[1][0] != '5' and temp[1][0] != '6':
-                continue
             channel_found  = False
             for temp_channel in channel_divided:
                 if temp[1] == temp_channel[0]:
@@ -438,6 +437,7 @@ class BMS_Parser:
             Prev_data = ''
             temp_Processed = list()
             count = 0
+            print(DataList[0])
             for temp in DataList[1]:
                 data = temp[2]
                 note_obj = None
@@ -484,7 +484,10 @@ class BMS_Parser:
                     note_obj.node = temp[0]
                     note_obj.channel = temp[1]
                     index = index + 1
-                    if not (LNOBJ_type == 3 and Prev_note.next == note_obj):
+                    if Prev_note != None:
+                        if not (LNOBJ_type == 3 and Prev_note.next == note_obj):
+                            temp_Processed.append(note_obj)
+                    else:
                         temp_Processed.append(note_obj)
                     count = count + 1
                     data = data[2:]
@@ -601,10 +604,11 @@ class BMS_Parser:
         return asdf
 
 class BMS_Player:
-    position = 0.0
+    position = -0.5
     BPM = 0.0
     Frame = 100
-    speed = 2.0
+    speed = 1
+    Difficult = 1.0
 
     Note_data = None
     Stop_data = None
@@ -615,28 +619,60 @@ class BMS_Player:
     Parser = BMS_Parser('')
 
     def Move(self):
-        self.position = self.position + float(self.BPM / 60 / Frame)
+        self.position = self.position + float(self.BPM / 240) / Frame
 
     def Draw_Note(self, screen):
         End = False
         clock = pygame.time.Clock()
-        while not End:
-            self.Move()
-            
-            screen.fill(BLACK)
+        screen.fill(BLACK)
+        for index1 in range(1, 8):
+            pygame.draw.line(screen, WHITE, [40 * index1 , 0], [40 * index1, 600], 1)
+        pygame.draw.line(screen, WHITE, [0, 600], [280, 600], 2)
+        for ttemp in self.Length_data[1]:
+            if float(ttemp[1]) - self.position < 0:
+                continue
+            if float(ttemp[1]) - self.position > 1 / self.speed:
+                break
+            pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
+        for temp in self.Note_data:
+            position = 0.0
+            position = float(self.Length_data[1][int(temp.node)][1]) + float(self.Length_data[0][int(temp.node)][1]) * float(temp.position)
+            if position - self.position < 0:
+                self.Note_data.remove(temp)
+                continue
+            if position - self.position > float(1 / self.speed):
+                break
+            x = 0
+            color = WHITE
+            if temp.channel == '11':#1
+                x = 40
+            elif temp.channel == '12':
+                color = BLUE
+                x = 80
+            elif temp.channel == '13':#3
+                x = 120
+            elif temp.channel == '14':
+                color = BLUE
+                x = 160
+            elif temp.channel == '15':#5
+                x = 200
+            elif temp.channel == '16': #0
+                color = RED
+                x = 0
+            elif temp.channel == '17':
+                color = BLUE
+                x = 240
+            elif temp.channel == '18':
+                x = 280
+            elif temp.channel == '19':
+                x = 320
+            else:
+                continue
+            pygame.draw.line(screen, color, [x, 600 - round((position - self.position) * 600 * self.speed)],[x+40, 600 - round((position - self.position) * 600 * self.speed)], 4)
+        pygame.display.flip()
+        return
 
-            for index1 in range(1, 8):
-                pygame.draw.line(screen, WHITE, [40 * index1 , 0], [40 * index1, 600], 1)
-            pygame.draw.line(screen, WHITE, [0, 600], [280, 600], 2)
-            for ttemp in self.Length_data[1]:
-                if float(ttemp[1]) - self.position < 0:
-                    continue
-                if float(ttemp[1]) - self.position > 1 / self.speed:
-                    break
-                pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
-
-            pygame.display.flip()
-            clock.tick(self.Frame)
+    def Process_Input(self):
         return
 
 def Screen_init(width, height, caption):
@@ -655,14 +691,21 @@ screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
-p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
+p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
 PPP = BMS_Player()
-PPP.Length_data = p.Get_Node_Length()
+asd = '123456'
+
+q = p.Get_Note()
+w = list()
+for temp in q:
+    for ttemp in temp[1]:
+        w.append(ttemp)
+w = sorted(w, key=lambda qwer: float(qwer.node) + float(qwer.position))
 PPP.BPM = float(p.Parse_Start_BPM())
-listTemp = p.Get_Note()
-PPP.Draw_Note(screen)
-"""
-lll = p.Get_BPM()
-for temp in lll:
-    print("p = " + str(float(temp.node) + temp.position) + ', data = ' + str(temp.data))
-"""
+PPP.BPM_data = p.Get_BPM()
+PPP.Length_data = p.Get_Node_Length()
+PPP.Note_data = w
+while True:
+    PPP.Move()
+    PPP.Draw_Note(screen)
+    clock.tick(PPP.Frame)
