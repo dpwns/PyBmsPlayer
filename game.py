@@ -604,11 +604,13 @@ class BMS_Parser:
         return asdf
 
 class BMS_Player:
-    position = -0.5
+    position = 1
     BPM = 0.0
     Frame = 100
     speed = 1
     Difficult = 1.0
+
+    Start_time = None
 
     Note_data = None
     Stop_data = None
@@ -619,8 +621,8 @@ class BMS_Player:
     Parser = BMS_Parser('')
 
     def Move(self):
-        self.position = self.position + float(self.BPM / 240) / Frame
-
+        self.position = self.position + float(self.BPM / 240) / self.Frame
+    
     def Draw_Note(self, screen):
         End = False
         clock = pygame.time.Clock()
@@ -705,7 +707,9 @@ PPP.BPM = float(p.Parse_Start_BPM())
 PPP.BPM_data = p.Get_BPM()
 PPP.Length_data = p.Get_Node_Length()
 PPP.Note_data = w
-while True:
+starttime = time.time()
+for temp in range(200):
     PPP.Move()
     PPP.Draw_Note(screen)
     clock.tick(PPP.Frame)
+print(time.time() - starttime)
