@@ -437,7 +437,6 @@ class BMS_Parser:
             Prev_data = ''
             temp_Processed = list()
             count = 0
-            print(DataList[0])
             for temp in DataList[1]:
                 data = temp[2]
                 note_obj = None
@@ -468,7 +467,7 @@ class BMS_Parser:
                             temp_note = Note()
                             temp_note.node = temp[0]
                             temp_note.channel = temp[1]
-                            temp_note.position = float((index + 1) / max_index)
+                            temp_note.position = float(index / max_index)
                             note_obj.next = temp_note
                         elif LNOBJ_type == 1:
                             if Prev_note != None:
@@ -477,12 +476,13 @@ class BMS_Parser:
                                     temp_note = Note()
                                     temp_note.node = temp[0]
                                     temp_note.channel = temp[1]
-                                    temp_note.position = float((index + 1) / max_index)
+                                    temp_note.position = float(index / max_index)
                                     note_obj.next = temp_note
-                    
                     note_obj.position = float(index / max_index)
                     note_obj.node = temp[0]
                     note_obj.channel = temp[1]
+                    if note_obj.channel[0] == '5' or note_obj.channel[0] == '6':
+                        note_obj.channel = str(int(note_obj.channel) - 40)
                     index = index + 1
                     if Prev_note != None:
                         if not (LNOBJ_type == 3 and Prev_note.next == note_obj):
@@ -610,6 +610,8 @@ class BMS_Player:
     speed = 1
     Difficult = 1.0
 
+    Prev_Time = None
+
     Start_time = None
 
     Note_data = None
@@ -621,7 +623,9 @@ class BMS_Player:
     Parser = BMS_Parser('')
 
     def Move(self):
-        self.position = self.position + float(self.BPM / 240) / self.Frame
+        t = time.time()
+        self.position = self.position + float(self.BPM / 240) * (t - self.Prev_Time)
+        self.Prev_Time = t
     
     def Draw_Note(self, screen):
         End = False
@@ -639,9 +643,17 @@ class BMS_Player:
         for temp in self.Note_data:
             position = 0.0
             position = float(self.Length_data[1][int(temp.node)][1]) + float(self.Length_data[0][int(temp.node)][1]) * float(temp.position)
-            if position - self.position < 0:
+            position2 = position
+            if position - self.position < 0 and temp.next == None:
                 self.Note_data.remove(temp)
                 continue
+            if temp.next != None:
+                temp2 = temp.next
+                position2 = float(self.Length_data[1][int(temp2.node)][1]) + float(self.Length_data[0][int(temp2.node)][1]) * float(temp2.position)
+                if position2 - self.position < 0:
+                    if temp2 in self.Note_data:
+                        self.Note_data.remove(temp2)
+                    self.Note_data.remove(temp)
             if position - self.position > float(1 / self.speed):
                 break
             x = 0
@@ -670,7 +682,13 @@ class BMS_Player:
                 x = 320
             else:
                 continue
-            pygame.draw.line(screen, color, [x, 600 - round((position - self.position) * 600 * self.speed)],[x+40, 600 - round((position - self.position) * 600 * self.speed)], 4)
+            if position == position2:
+                pygame.draw.line(screen, color, [x, 600 - round((position - self.position) * 600 * self.speed)],[x+40, 600 - round((position - self.position) * 600 * self.speed)], 4)
+            else:
+                if position - self.position < 0:
+                    pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - self.position) * 600)])
+                else:
+                    pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - position) * 600)])
         pygame.display.flip()
         return
 
@@ -693,10 +711,8 @@ screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
-p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
+p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
 PPP = BMS_Player()
-asd = '123456'
-
 q = p.Get_Note()
 w = list()
 for temp in q:
@@ -707,9 +723,7 @@ PPP.BPM = float(p.Parse_Start_BPM())
 PPP.BPM_data = p.Get_BPM()
 PPP.Length_data = p.Get_Node_Length()
 PPP.Note_data = w
-starttime = time.time()
-for temp in range(200):
+PPP.Prev_Time = time.time()
+while True:
     PPP.Move()
     PPP.Draw_Note(screen)
-    clock.tick(PPP.Frame)
-print(time.time() - starttime)
