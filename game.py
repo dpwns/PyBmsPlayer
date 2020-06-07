@@ -398,7 +398,7 @@ class BMS_Parser:
                     index = index + 1
                 List.append([int(temp[0]), float(temp[2])])
                 index = index + 1
-        while len(List) < self.MaxNode:
+        while len(List) <= self.MaxNode:
             List.append([index, float(1)])
             index = index + 1
         return List
@@ -566,6 +566,7 @@ class BMS_Parser:
         BPM_list = self.Get_BPM()
         Stop = self.Get_Stop()
         Length = self.Get_Node_Length()
+        Note_list = self.Get_Note()
         Prev_length = 0.0
         Prev_timing = None
         for temp in BPM_list:
@@ -573,6 +574,7 @@ class BMS_Parser:
             temp.timing = 0.0
             node = int(temp.node)
             length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(temp.position))
+            temp.Absolute_position = length
             lengthTemp = length
             length = length - Prev_length
             Prev_length = lengthTemp
@@ -593,21 +595,48 @@ class BMS_Parser:
                     break
             node = int(temp.node)
             length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(temp.position))
+            temp.Absolute_position = length
             if temp_BPM != None:
                 temp.timing = float(BPM / 60 * length)
             else:
                 length = length - float(Length[1][temp_BPM.node] - Length[0][temp_BPM.node] * (1 - temp_BPM.position))
                 temp.timing = float(BPM / 60 * length) + temp_BPM.timing
+        for temp in Note_list:
+            for ttemp in temp[1]:
+                node = int(ttemp.node)
+                length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(ttemp.position))
+                ttemp.Absolute_position = length
+                bpm_note = None
+                for temp_bpm in BPM_list:
+                    if temp_bpm.Absolute_position > length:
+                        break
+                    bpm_note = temp_bpm
+                if bpm_note == None:
+                    ttemp.timing = float(StartBPM / 60 * length)
+                else:
+                    ttemp.timing = float(float(bpm_note.data) / 60 * (length - bpm_note.Absolute_position)) + bpm_note.timing
+        for temp in Stop:
+            for ttemp in Stop:
+                if temp.Absolute_position < ttemp.Absolute_position:
+                    ttemp.timing = ttemp.timing + float(temp.data)
+            for ttemp in BPM_list:
+                if temp.Absolute_position < ttemp.Absolute_position:
+                    ttemp.timing = ttemp.timing + float(temp.data)
+            for ttemp in Note_list:
+                for tttemp in ttemp[1]:
+                    if temp.Absolute_position < tttemp.Absolute_position:
+                        tttemp.timing = tttemp.timing + float(temp.data)
         asdf = list()
         asdf.append(BPM_list)
         asdf.append(Stop)
+        asdf.append(Note_list)
         return asdf
 
 class BMS_Player:
-    position = 1
+    position = -5
     BPM = 0.0
     Frame = 100
-    speed = 1
+    speed = 3
     Difficult = 1.0
 
     Prev_Time = None
@@ -622,10 +651,28 @@ class BMS_Player:
 
     Parser = BMS_Parser('')
 
+    channel_index = 0
+
     def Move(self):
         t = time.time()
-        self.position = self.position + float(self.BPM / 240) * (t - self.Prev_Time)
-        self.Prev_Time = t
+        for temp in self.BPM_data:
+            if float(temp.Absolute_position) <= self.position:
+                self.BPM = float(temp.data)
+                self.BPM_data.remove(temp)
+            else:
+                break
+        for temp in self.Stop_data:
+            if temp.Absolute_position <= self.position:
+                self.Prev_Time = t + float(temp.data)
+                print(t)
+                print(self.Prev_Time)
+                print(temp.Absolute_position)
+                self.Stop_data.remove(temp)
+            else:
+                break
+        if t - self.Prev_Time >= 0:
+            self.position = self.position + float(self.BPM / 240) * (t - self.Prev_Time)
+            self.Prev_Time = t
     
     def Draw_Note(self, screen):
         End = False
@@ -642,14 +689,17 @@ class BMS_Player:
             pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
         for temp in self.Note_data:
             position = 0.0
-            position = float(self.Length_data[1][int(temp.node)][1]) + float(self.Length_data[0][int(temp.node)][1]) * float(temp.position)
+            position = float(temp.Absolute_position)
             position2 = position
+            if position - self.position < 0 and temp.sound != None:
+                print('p')
+                temp.sound.play()
             if position - self.position < 0 and temp.next == None:
                 self.Note_data.remove(temp)
                 continue
             if temp.next != None:
                 temp2 = temp.next
-                position2 = float(self.Length_data[1][int(temp2.node)][1]) + float(self.Length_data[0][int(temp2.node)][1]) * float(temp2.position)
+                position2 = float(temp2.Absolute_position)
                 if position2 - self.position < 0:
                     if temp2 in self.Note_data:
                         self.Note_data.remove(temp2)
@@ -711,19 +761,23 @@ screen = Screen_init(Width, Height, 'BMS Player')
 pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
-p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
+#p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
+
+p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
 PPP = BMS_Player()
-q = p.Get_Note()
+q = p.Set_Note_Timing()
 w = list()
-for temp in q:
+for temp in q[2]:
     for ttemp in temp[1]:
         w.append(ttemp)
-w = sorted(w, key=lambda qwer: float(qwer.node) + float(qwer.position))
+w = sorted(w, key=lambda qwer: float(qwer.Absolute_position))
+PPP.Stop_data = sorted(q[1], key=lambda qwer: float(qwer.Absolute_position))
+PPP.BPM_data = sorted(q[0], key=lambda qwer: float(qwer.Absolute_position))
 PPP.BPM = float(p.Parse_Start_BPM())
-PPP.BPM_data = p.Get_BPM()
 PPP.Length_data = p.Get_Node_Length()
 PPP.Note_data = w
 PPP.Prev_Time = time.time()
+PPP.Start_time = PPP.Prev_Time
 while True:
     PPP.Move()
     PPP.Draw_Note(screen)
