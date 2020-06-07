@@ -633,7 +633,7 @@ class BMS_Parser:
         return asdf
 
 class BMS_Player:
-    position = -5
+    position = -1
     BPM = 0.0
     Frame = 100
     speed = 3
@@ -653,7 +653,11 @@ class BMS_Player:
 
     channel_index = 0
 
+    counter = 0
+    FrameTemp = 0
+
     def Move(self):
+        screen.fill(BLACK)
         t = time.time()
         for temp in self.BPM_data:
             if float(temp.Absolute_position) <= self.position:
@@ -664,12 +668,19 @@ class BMS_Player:
         for temp in self.Stop_data:
             if temp.Absolute_position <= self.position:
                 self.Prev_Time = t + float(temp.data)
-                print(t)
-                print(self.Prev_Time)
-                print(temp.Absolute_position)
                 self.Stop_data.remove(temp)
             else:
                 break
+        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 20)
+        tempSum = (time.time() - self.Prev_Time)
+        if tempSum > 0:
+            self.FrameTemp = self.FrameTemp + 1 / tempSum
+            self.counter = (self.counter + 1) % 200
+        if self.counter == 0:
+            self.Frame = self.FrameTemp / 200
+            self.FrameTemp = 0
+        text = fontObj.render("Frame : " + str(self.Frame), True, WHITE)
+        screen.blit(text, (500, 0))
         if t - self.Prev_Time >= 0:
             self.position = self.position + float(self.BPM / 240) * (t - self.Prev_Time)
             self.Prev_Time = t
@@ -677,7 +688,6 @@ class BMS_Player:
     def Draw_Note(self, screen):
         End = False
         clock = pygame.time.Clock()
-        screen.fill(BLACK)
         for index1 in range(1, 8):
             pygame.draw.line(screen, WHITE, [40 * index1 , 0], [40 * index1, 600], 1)
         pygame.draw.line(screen, WHITE, [0, 600], [280, 600], 2)
@@ -692,7 +702,6 @@ class BMS_Player:
             position = float(temp.Absolute_position)
             position2 = position
             if position - self.position < 0 and temp.sound != None:
-                print('p')
                 temp.sound.play()
             if position - self.position < 0 and temp.next == None:
                 self.Note_data.remove(temp)
@@ -762,8 +771,7 @@ pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
 #p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
-
-p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
+p = BMS_Parser(os.getcwd() + "\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
 PPP = BMS_Player()
 q = p.Set_Note_Timing()
 w = list()
