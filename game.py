@@ -638,6 +638,7 @@ class BMS_Player:
     Frame = 100
     speed = 3
     Difficult = 1.0
+    maxIndex = 0
 
     Prev_Time = None
 
@@ -655,6 +656,121 @@ class BMS_Player:
 
     counter = 0
     FrameTemp = 0
+
+    def Main(self):
+        return
+
+    def Song_select(self):
+        select_song = ''
+        select_song_index = 0
+        max_song_index = 0
+        select_song_file_index = 0
+        max_song_file_index = 0
+        song_list = Bundle.SongList_all()
+        song_file_list = list()
+        max_song_index = len(song_list)
+        print(max_song_index)
+        is_file_select = False
+        while True:
+            screen.fill(BLACK)
+            if not is_file_select:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        return
+                    if event.type == pygame.KEYDOWN:
+                        key = pygame.key.get_pressed()
+                        if key[pygame.K_UP] == 1:
+                            if select_song_index - 1 >= 0:
+                                select_song_index = select_song_index - 1
+                            else:
+                                select_song_index = max_song_index - 1
+                        elif key[pygame.K_DOWN] == 1:
+                            if select_song_index + 1 < max_song_index :
+                                select_song_index = select_song_index + 1
+                            else:
+                                select_song_index = 0
+                        elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
+                            select_song_file_index = 0
+                            is_file_select = True
+                        elif key[pygame.K_ESCAPE] == 1:
+                            return
+                if max_song_index == 0:
+                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                    text = fontObj.render('Empty', True, WHITE)
+                    screen.blit(text, (0, Resolution_calculate(10)))
+                    pygame.display.flip()
+                    continue
+
+                List_num = 5
+                max_list_num = 5
+                while List_num > 0:
+                    if select_song_index - List_num >= 0:
+                        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                        text = fontObj.render(song_list[select_song_index - List_num], True, WHITE)
+                        screen.blit(text, (0, Resolution_calculate(10 + (max_list_num - List_num) * 30)))
+                    List_num = List_num - 1
+
+                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(30))
+                text = fontObj.render(song_list[select_song_index], True, WHITE)
+                screen.blit(text, (Resolution_calculate(10), Resolution_calculate(10 + max_list_num * 30 + 40)))
+
+                while List_num < max_list_num:
+                    List_num = List_num + 1
+                    if select_song_index + List_num < max_song_index:
+                        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                        text = fontObj.render(song_list[select_song_index + List_num], True, WHITE)
+                        screen.blit(text, (0, Resolution_calculate(90 + (max_list_num + List_num) * 30)))
+            else:
+                song_file_list = Bundle.Get_script_file(song_list[select_song_index])
+                max_song_file_index = len(song_file_list)
+                if max_song_file_index == 0:
+                    fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                    text = fontObj.render('Empty', True, WHITE)
+                    screen.blit(text, (0, Resolution_calculate(10)))
+                    pygame.display.flip()
+                    continue
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        return
+                    if event.type == pygame.KEYDOWN:
+                        key = pygame.key.get_pressed()
+                        if key[pygame.K_UP] == 1:
+                            if select_song_file_index - 1 >= 0:
+                                select_song_file_index = select_song_file_index - 1
+                            else:
+                                select_song_file_index = max_song_file_index - 1
+                        elif key[pygame.K_DOWN] == 1:
+                            if select_song_file_index + 1 < max_song_file_index :
+                                select_song_file_index = select_song_file_index + 1
+                            else:
+                                select_song_file_index = 0
+                        elif key[pygame.K_ESCAPE] == 1 or key[pygame.K_LEFT] == 1:
+                            is_file_select = False
+                        elif key[pygame.K_KP_ENTER] == 1 or key[pygame.K_RIGHT] == 1:
+                            if max_song_file_index > 0:
+                                return Bundle.SongList_name(song_list[select_song_index]) + '\\' + song_file_list[select_song_file_index]
+
+                List_num = 5
+                max_list_num = 5
+                while List_num > 0:
+                    if select_song_file_index - List_num >= 0:
+                        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                        text = fontObj.render(song_file_list[select_song_file_index - List_num], True, WHITE)
+                        screen.blit(text, (0, Resolution_calculate(10 + (max_list_num - List_num) * 30)))
+                    List_num = List_num - 1
+
+                fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(30))
+                text = fontObj.render(song_file_list[select_song_file_index], True, WHITE)
+                screen.blit(text, (Resolution_calculate(10), Resolution_calculate(10 + max_list_num * 30 + 40)))
+
+                while List_num < max_list_num:
+                    List_num = List_num + 1
+                    if select_song_file_index + List_num < max_song_file_index:
+                        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', Resolution_calculate(20))
+                        text = fontObj.render(song_file_list[select_song_file_index + List_num], True, WHITE)
+                        screen.blit(text, (0, Resolution_calculate(90 + (max_list_num + List_num) * 30)))
+            pygame.display.flip()
+        return
 
     def Move(self):
         screen.fill(BLACK)
@@ -771,21 +887,27 @@ pygame.mouse.set_visible(True)
 clock = pygame.time.Clock()
 clock.tick(Frame)
 #p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
-p = BMS_Parser(os.getcwd() + "\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
-PPP = BMS_Player()
-q = p.Set_Note_Timing()
-w = list()
-for temp in q[2]:
-    for ttemp in temp[1]:
-        w.append(ttemp)
-w = sorted(w, key=lambda qwer: float(qwer.Absolute_position))
-PPP.Stop_data = sorted(q[1], key=lambda qwer: float(qwer.Absolute_position))
-PPP.BPM_data = sorted(q[0], key=lambda qwer: float(qwer.Absolute_position))
-PPP.BPM = float(p.Parse_Start_BPM())
-PPP.Length_data = p.Get_Node_Length()
-PPP.Note_data = w
-PPP.Prev_Time = time.time()
-PPP.Start_time = PPP.Prev_Time
+#p = BMS_Parser(os.getcwd() + "\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
 while True:
-    PPP.Move()
-    PPP.Draw_Note(screen)
+    PPP = BMS_Player()
+    asdfqwer = PPP.Song_select()
+    p = BMS_Parser(asdfqwer)
+    q = p.Set_Note_Timing()
+    w = list()
+    for temp in q[2]:
+        for ttemp in temp[1]:
+            w.append(ttemp)
+    w = sorted(w, key=lambda qwer: float(qwer.Absolute_position))
+    PPP.Stop_data = sorted(q[1], key=lambda qwer: float(qwer.Absolute_position))
+    PPP.BPM_data = sorted(q[0], key=lambda qwer: float(qwer.Absolute_position))
+    PPP.BPM = float(p.Parse_Start_BPM())
+    PPP.Length_data = p.Get_Node_Length()
+    PPP.Note_data = w
+    PPP.Prev_Time = time.time()
+    PPP.Start_time = PPP.Prev_Time
+    PPP.maxIndex = len(PPP.Length_data)
+    while True:
+        PPP.Move()
+        PPP.Draw_Note(screen)
+        if len(PPP.Note_data) == 0 and len(PPP.Length_data) == 0:
+            break
