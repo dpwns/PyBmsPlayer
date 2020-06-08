@@ -929,8 +929,9 @@ while True:
     PPP.Start_time = PPP.Prev_Time
     PPP.maxIndex = len(PPP.Length_data)
     Timer = time.time()
-    Frame = 100
+    Frame = float(1 / 144)
     while True:
         PPP.Move()
-        if time.time() - Timer > float(1 / Frame):
+        if time.time() - Timer > Frame:
+            Timer = time.time()
             PPP.Draw_Note(screen)
