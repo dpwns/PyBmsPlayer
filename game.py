@@ -517,13 +517,15 @@ class BMS_Parser:
     def Get_Stop(self):
         Data = self.Parse_Stop()
         BPM_list = self.Get_BPM()
-        BPM = float(self.Parse_Start_BPM())
+        StartBPM = float(self.Parse_Start_BPM())
+        BPM = StartBPM
         stop_list = list()
         for temp in Data:
-            max_index = int(len(temp[1]) / 2)
+            max_index = int(len(temp[1]))
             data = temp[1]
             index = 0
             for ttemp in data:
+                BPM = StartBPM
                 note_obj = Note()
                 note_obj.channel = '09'
                 note_obj.node = temp[0]
@@ -531,7 +533,9 @@ class BMS_Parser:
                 for bpm in BPM_list:
                     if float(bpm.position) + float(bpm.node) <= float(note_obj.node) + float(note_obj.position):
                         BPM = float(bpm.data)
-                note_obj.data = float(int(ttemp) / 192 * BPM / 60)
+                    else:
+                        break
+                note_obj.data = float(int(ttemp) / 192 * 240 / BPM)
                 stop_list.append(note_obj)
                 index = index + 1
         temp = self.Parse_Stp()
@@ -657,6 +661,8 @@ class BMS_Player:
     counter = 0
     FrameTemp = 0
 
+    Stop = 0.0
+
     def Main(self):
         return
 
@@ -669,7 +675,6 @@ class BMS_Player:
         song_list = Bundle.SongList_all()
         song_file_list = list()
         max_song_index = len(song_list)
-        print(max_song_index)
         is_file_select = False
         while True:
             screen.fill(BLACK)
@@ -783,7 +788,7 @@ class BMS_Player:
                 break
         for temp in self.Stop_data:
             if temp.Absolute_position <= self.position:
-                self.Prev_Time = t + float(temp.data)
+                self.Stop = float(temp.data)
                 self.Stop_data.remove(temp)
             else:
                 break
@@ -797,7 +802,11 @@ class BMS_Player:
             self.FrameTemp = 0
         text = fontObj.render("Frame : " + str(self.Frame), True, WHITE)
         screen.blit(text, (500, 0))
-        if t - self.Prev_Time >= 0:
+
+        if self.Stop > 0:
+            self.Stop = self.Stop + self.Prev_Time - t
+            self.Prev_Time = t
+        elif t - self.Prev_Time >= 0:
             self.position = self.position + float(self.BPM / 240) * (t - self.Prev_Time)
             self.Prev_Time = t
     
@@ -848,13 +857,10 @@ class BMS_Player:
             elif temp.channel == '16': #0
                 color = RED
                 x = 0
-            elif temp.channel == '17':
-                color = BLUE
-                x = 240
             elif temp.channel == '18':
-                x = 280
+                x = 240
             elif temp.channel == '19':
-                x = 320
+                x = 280
             else:
                 continue
             if position == position2:
@@ -906,8 +912,12 @@ while True:
     PPP.Prev_Time = time.time()
     PPP.Start_time = PPP.Prev_Time
     PPP.maxIndex = len(PPP.Length_data)
+    counter = 0
     while True:
         PPP.Move()
-        PPP.Draw_Note(screen)
+        counter = counter + 1
+        counter = counter % 5
+        if counter == 0:
+            PPP.Draw_Note(screen)
         if len(PPP.Note_data) == 0 and len(PPP.Length_data) == 0:
             break
