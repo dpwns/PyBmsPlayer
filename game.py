@@ -464,6 +464,7 @@ class BMS_Parser:
                             if Prev_note != None:
                                 if Prev_note.data == note_obj.data and Prev_data == note_obj.data:
                                     Prev_note.next = note_obj
+                                    note_obj.sound = None
                             temp_note = Note()
                             temp_note.node = temp[0]
                             temp_note.channel = temp[1]
@@ -473,6 +474,7 @@ class BMS_Parser:
                             if Prev_note != None:
                                 if Prev_note.next == None and count % 2 == 1:
                                     Prev_note.next = note_obj
+                                    note_obj.sound = None
                                     temp_note = Note()
                                     temp_note.node = temp[0]
                                     temp_note.channel = temp[1]
@@ -619,6 +621,21 @@ class BMS_Parser:
                     ttemp.timing = float(StartBPM / 60 * length)
                 else:
                     ttemp.timing = float(float(bpm_note.data) / 60 * (length - bpm_note.Absolute_position)) + bpm_note.timing
+                if ttemp.next != None:
+                    ttemp = ttemp.next
+                    ttemp.sound = None
+                    node = int(ttemp.node)
+                    length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(ttemp.position))
+                    ttemp.Absolute_position = length
+                    bpm_note = None
+                    for temp_bpm in BPM_list:
+                        if temp_bpm.Absolute_position > length:
+                            break
+                        bpm_note = temp_bpm
+                    if bpm_note == None:
+                        ttemp.timing = float(StartBPM / 60 * length)
+                    else:
+                        ttemp.timing = float(float(bpm_note.data) / 60 * (length - bpm_note.Absolute_position)) + bpm_note.timing
         for temp in Stop:
             for ttemp in Stop:
                 if temp.Absolute_position < ttemp.Absolute_position:
@@ -812,8 +829,7 @@ class BMS_Player:
     
     def Draw_Note(self, screen):
         End = False
-        clock = pygame.time.Clock()
-        for index1 in range(1, 8):
+        for index1 in range(1, 9):
             pygame.draw.line(screen, WHITE, [40 * index1 , 0], [40 * index1, 600], 1)
         pygame.draw.line(screen, WHITE, [0, 600], [280, 600], 2)
         for ttemp in self.Length_data[1]:
@@ -867,9 +883,9 @@ class BMS_Player:
                 pygame.draw.line(screen, color, [x, 600 - round((position - self.position) * 600 * self.speed)],[x+40, 600 - round((position - self.position) * 600 * self.speed)], 4)
             else:
                 if position - self.position < 0:
-                    pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - self.position) * 600)])
+                    pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - self.position) * 600 * self.speed)])
                 else:
-                    pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - position) * 600)])
+                    pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - position) * 600 * self.speed)])
         pygame.display.flip()
         return
 
@@ -912,12 +928,9 @@ while True:
     PPP.Prev_Time = time.time()
     PPP.Start_time = PPP.Prev_Time
     PPP.maxIndex = len(PPP.Length_data)
-    counter = 0
+    Timer = time.time()
+    Frame = 100
     while True:
         PPP.Move()
-        counter = counter + 1
-        counter = counter % 5
-        if counter == 0:
+        if time.time() - Timer > float(1 / Frame):
             PPP.Draw_Note(screen)
-        if len(PPP.Note_data) == 0 and len(PPP.Length_data) == 0:
-            break
