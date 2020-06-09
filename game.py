@@ -99,6 +99,12 @@ class BMS_Parser:
     MaxNode = 0
 
     def __init__(self, file_directory):
+        self.file_dir = ''
+        self.folder_dir = ''
+        self.Data = list()
+        self.Main_Data = list()
+        self.LongNote_Type = 0
+        self.MaxNode = 0
         self.file_dir = file_directory
         self.folder_dir = self.file_dir
         while len(self.folder_dir) > 0:
@@ -111,9 +117,10 @@ class BMS_Parser:
     def Reset(self):
         self.file_dir = ''
         self.folder_dir = ''
-        self.Data = self.Data.clear()
-        self.Main_Data = self.Main_Data.clear()
+        self.Data = list()
+        self.Main_Data = list()
         self.LongNote_Type = 0
+        self.MaxNode = 0
 
     def Set_file_directory(self, directory):
         self.file_dir = directory
@@ -137,8 +144,23 @@ class BMS_Parser:
         self.Data.clear()
         if self.file_dir == '': 
             return
-        File = open(self.file_dir, 'r', encoding='UTF8')
-        temp_string = File.readline()
+        try:
+            File = open(self.file_dir, 'r', encoding='CP949')
+            temp_string = File.readline()
+        except:
+            File.close()
+            try:
+                File = open(self.file_dir, 'r', encoding='UTF-8')
+                temp_string = File.readline()
+            except:
+                File.close()
+                try:
+                    File = open(self.file_dir, 'r', encoding='UTF-16')
+                    temp_string = File.readline()
+                except:
+                    print("File Opne Error")
+                    File.close()
+                    return
         while temp_string != '':
             temp_string = temp_string.replace('\n', '')
             if temp_string.startswith('#'):
@@ -368,7 +390,7 @@ class BMS_Parser:
             dir_temp = wav_dir + wav[1]
             if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
                 wav[1] = wav[1].replace(".wav", ".ogg")
-                if not os.path.isfile(self.folder_dir + '\\' + wav[1]):
+                if os.path.isfile(self.folder_dir + '\\' + wav[1]):
                     dir_temp = wav_dir + wav[1]
                     sound = pygame.mixer.Sound(dir_temp)
             else:
@@ -660,6 +682,7 @@ class BMS_Player:
     speed = 3
     Difficult = 1.0
     maxIndex = 0
+    Player = 0
 
     Prev_Time = None
 
@@ -679,6 +702,25 @@ class BMS_Player:
     FrameTemp = 0
 
     Stop = 0.0
+
+    def Reset(self):
+        self.position = -1
+        self.BPM = 0.0
+        self.Frame = 100
+        self.speed = 3
+        self.Difficult = 1.0
+        self.maxIndex = 0
+
+        self.Prev_Time = None
+
+        self.Start_time = None
+
+        self.Note_data = None
+        self.Stop_data = None
+        self.BPM_data = None
+        self.BGM_data = None
+        self.Length_data = None
+        return
 
     def Main(self):
         return
@@ -829,21 +871,29 @@ class BMS_Player:
     
     def Draw_Note(self, screen):
         End = False
+        color = (180, 180, 180)
         for index1 in range(1, 9):
-            pygame.draw.line(screen, WHITE, [40 * index1 , 0], [40 * index1, 600], 1)
-        pygame.draw.line(screen, WHITE, [0, 600], [280, 600], 2)
+            pygame.draw.line(screen, color, [40 * index1 , 0], [40 * index1, 600], 1)
+        pygame.draw.line(screen, color, [0, 600], [320, 600], 2)
+        if self.Player != '1':
+            for index1 in range(1, 9):
+                pygame.draw.line(screen, color, [920 + 40 * index1 , 0], [920 + 40 * index1, 600], 1)
+            pygame.draw.line(screen, color, [960, 600], [1280, 600], 2)
         for ttemp in self.Length_data[1]:
             if float(ttemp[1]) - self.position < 0:
                 continue
             if float(ttemp[1]) - self.position > 1 / self.speed:
                 break
-            pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
+            pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [320, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
+            if self.Player != '1':
+                pygame.draw.line(screen, WHITE, [960, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [1280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
         for temp in self.Note_data:
             position = 0.0
             position = float(temp.Absolute_position)
             position2 = position
             if position - self.position < 0 and temp.sound != None:
                 temp.sound.play()
+                temp.sound = None
             if position - self.position < 0 and temp.next == None:
                 self.Note_data.remove(temp)
                 continue
@@ -866,7 +916,7 @@ class BMS_Player:
             elif temp.channel == '13':#3
                 x = 120
             elif temp.channel == '14':
-                color = BLUE
+                color = YELLOW
                 x = 160
             elif temp.channel == '15':#5
                 x = 200
@@ -874,11 +924,33 @@ class BMS_Player:
                 color = RED
                 x = 0
             elif temp.channel == '18':
+                color = BLUE
                 x = 240
             elif temp.channel == '19':
                 x = 280
+            elif temp.channel == '21':#1
+                x = 960
+            elif temp.channel == '22':
+                color = BLUE
+                x = 1000
+            elif temp.channel == '23':#3
+                x = 1040
+            elif temp.channel == '24':
+                color = YELLOW
+                x = 1080
+            elif temp.channel == '25':#5
+                x = 1120
+            elif temp.channel == '26': #0
+                color = RED
+                x = 1240
+            elif temp.channel == '28':
+                color = BLUE
+                x = 1160
+            elif temp.channel == '29':
+                x = 1200
             else:
                 continue
+
             if position == position2:
                 pygame.draw.line(screen, color, [x, 600 - round((position - self.position) * 600 * self.speed)],[x+40, 600 - round((position - self.position) * 600 * self.speed)], 4)
             else:
@@ -911,15 +983,22 @@ clock.tick(Frame)
 #p = BMS_Parser("C:\\Users\\APSP\\Desktop\\BMS_Player\\Bundle\\Moonrise\\HD.bms")
 #p = BMS_Parser(os.getcwd() + "\\Bundle\\004. Applesoda - JoHwa\\johwa_5a.bml")
 while True:
+    PPP = None
     PPP = BMS_Player()
+    PPP.Reset()
     asdfqwer = PPP.Song_select()
     p = BMS_Parser(asdfqwer)
+    p.Reset()
+    p.Set_file_directory(asdfqwer)
     q = p.Set_Note_Timing()
     w = list()
     for temp in q[2]:
         for ttemp in temp[1]:
-            w.append(ttemp)
+            if ttemp.channel == '01' or (int(ttemp.channel) < 30 and int(ttemp.channel) > 10):
+                w.append(ttemp)
     w = sorted(w, key=lambda qwer: float(qwer.Absolute_position))
+    PPP.Player = p.Parse_Header()
+    PPP.Player = PPP.Player[0][1]
     PPP.Stop_data = sorted(q[1], key=lambda qwer: float(qwer.Absolute_position))
     PPP.BPM_data = sorted(q[0], key=lambda qwer: float(qwer.Absolute_position))
     PPP.BPM = float(p.Parse_Start_BPM())
@@ -930,8 +1009,14 @@ while True:
     PPP.maxIndex = len(PPP.Length_data)
     Timer = time.time()
     Frame = float(1 / 144)
+    EndTime = None
     while True:
         PPP.Move()
         if time.time() - Timer > Frame:
             Timer = time.time()
             PPP.Draw_Note(screen)
+            if len(PPP.Note_data) <= 0 and EndTime != None:
+                if time.time() - EndTime > 5:
+                    break
+            if len(PPP.Note_data) <= 0 and EndTime == None:
+                EndTime = time.time()
