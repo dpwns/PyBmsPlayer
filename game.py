@@ -89,6 +89,7 @@ class Note:
     sound = None
     data = '00'
     Absolute_position = 0.0
+    Pressed = False
 
 class BMS_Parser:
     file_dir = ''
@@ -242,16 +243,20 @@ class BMS_Parser:
                 continue
             if IsIgnore:
                 continue
-
-            if temp_string[6] != ':':
+            
+            if temp_string.find(':') == -1:
+                continue
+            elif temp_string[6] != ':':
                 continue
             node = temp_string[1:4]
             if int(node) > self.MaxNode:
                 self.MaxNode = int(node)
             channel = temp_string[4:6]
             data = temp_string[7:]
-            Data_list.append([node, channel, data])
+            if channel.find('D') == -1:
+                Data_list.append([node, channel, data])
         self.Main_Data = Data_list
+        print("Main Data Read Finish")
         return Data_list
 
     def Parse_Stop_key(self): # #STOP 키값 읽기
@@ -444,6 +449,8 @@ class BMS_Parser:
         channel_divided = list() #[channel, list()]
         Processed_Data = list()
         for temp in self.Main_Data:
+            if not (temp[1] == '01' or (int(temp[1]) < 30 and int(temp[1]) > 10) or (int(temp[1]) < 70 and int(temp[1]) > 50)):
+                continue
             channel_found  = False
             for temp_channel in channel_divided:
                 if temp[1] == temp_channel[0]:
@@ -580,6 +587,8 @@ class BMS_Parser:
                     continue
                 note_obj = Note()
                 note_obj.data = float(ttemp)
+                if float(ttemp) % 100001 == 0:
+                    note_obj.data = float(ttemp) / 100001
                 note_obj.node = int(temp[0])
                 note_obj.position = float(index / len(temp[1]))
                 List.append(note_obj)
@@ -597,6 +606,7 @@ class BMS_Parser:
         Note_list = self.Get_Note()
         Prev_length = 0.0
         Prev_timing = None
+        print("Start Timing")
         for temp in BPM_list:
             length = 0.0
             temp.timing = 0.0
@@ -607,11 +617,12 @@ class BMS_Parser:
             length = length - Prev_length
             Prev_length = lengthTemp
             if Prev_timing == None:
-                temp.timing = float(BPM / 60 * length)
+                temp.timing = float(240 / BPM * length)
             else:
-                temp.timing = float(BPM / 60 * length) + Prev_timing.timing
+                temp.timing = float(240 / BPM * length) + Prev_timing.timing
             Prev_timing = temp
             BPM = float(temp.data)
+        print("BPM Timing End")
         for temp in Stop:
             BPM = StartBPM
             temp_BPM = None
@@ -625,10 +636,11 @@ class BMS_Parser:
             length = float(Length[1][node][1]) - float(Length[0][node][1]) * (1 - float(temp.position))
             temp.Absolute_position = length
             if temp_BPM != None:
-                temp.timing = float(BPM / 60 * length)
+                temp.timing = float(240 / BPM * length)
             else:
                 length = length - float(Length[1][temp_BPM.node] - Length[0][temp_BPM.node] * (1 - temp_BPM.position))
-                temp.timing = float(BPM / 60 * length) + temp_BPM.timing
+                temp.timing = float(240 / BPM * length) + temp_BPM.timing
+        print("Stop Timing End")
         for temp in Note_list:
             for ttemp in temp[1]:
                 node = int(ttemp.node)
@@ -640,9 +652,9 @@ class BMS_Parser:
                         break
                     bpm_note = temp_bpm
                 if bpm_note == None:
-                    ttemp.timing = float(StartBPM / 60 * length)
+                    ttemp.timing = float(240 / StartBPM * length)
                 else:
-                    ttemp.timing = float(float(bpm_note.data) / 60 * (length - bpm_note.Absolute_position)) + bpm_note.timing
+                    ttemp.timing = float(240 /float(bpm_note.data) * (length - bpm_note.Absolute_position)) + bpm_note.timing
                 if ttemp.next != None:
                     ttemp = ttemp.next
                     ttemp.sound = None
@@ -655,9 +667,13 @@ class BMS_Parser:
                             break
                         bpm_note = temp_bpm
                     if bpm_note == None:
-                        ttemp.timing = float(StartBPM / 60 * length)
+                        ttemp.timing = float(240 / StartBPM * length)
                     else:
-                        ttemp.timing = float(float(bpm_note.data) / 60 * (length - bpm_note.Absolute_position)) + bpm_note.timing
+                        ttemp.timing = float(240 / float(bpm_note.data) * (length - bpm_note.Absolute_position)) + bpm_note.timing
+        print("Note Timing End")
+        PrevStopIndex = 0
+        PrevBPMIndex = 0
+        PrevNoteIndex = 0
         for temp in Stop:
             for ttemp in Stop:
                 if temp.Absolute_position < ttemp.Absolute_position:
@@ -669,6 +685,7 @@ class BMS_Parser:
                 for tttemp in ttemp[1]:
                     if temp.Absolute_position < tttemp.Absolute_position:
                         tttemp.timing = tttemp.timing + float(temp.data)
+        print("Stop Add End")
         asdf = list()
         asdf.append(BPM_list)
         asdf.append(Stop)
@@ -703,13 +720,19 @@ class BMS_Player:
 
     Stop = 0.0
 
+    Combo = 0
+
+    timing = 0.1
+
     def Reset(self):
-        self.position = -1
+        self.position = 0
         self.BPM = 0.0
         self.Frame = 100
         self.speed = 3
         self.Difficult = 1.0
         self.maxIndex = 0
+
+        self.Combo = 0
 
         self.Prev_Time = None
 
@@ -841,6 +864,8 @@ class BMS_Player:
         t = time.time()
         for temp in self.BPM_data:
             if float(temp.Absolute_position) <= self.position:
+                self.position = self.position + float(self.BPM / 240) * (self.Start_time + temp.timing - self.Prev_Time)
+                self.Prev_Time = self.Start_time + temp.timing
                 self.BPM = float(temp.data)
                 self.BPM_data.remove(temp)
             else:
@@ -887,15 +912,21 @@ class BMS_Player:
             pygame.draw.line(screen, WHITE, [0, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [320, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
             if self.Player != '1':
                 pygame.draw.line(screen, WHITE, [960, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], [1280, 600 - round((float(ttemp[1]) - self.position) * 600 * self.speed)], 1)
+        t = time.time() - self.Start_time
         for temp in self.Note_data:
             position = 0.0
             position = float(temp.Absolute_position)
             position2 = position
-            if position - self.position < 0 and temp.sound != None:
+
+            if position - self.position < 0 and temp.sound != None and temp.channel == '01':
                 temp.sound.play()
                 temp.sound = None
-            if position - self.position < 0 and temp.next == None:
                 self.Note_data.remove(temp)
+                continue
+
+            if t - temp.timing > self.timing and temp.next == None:
+                self.Note_data.remove(temp)
+                self.Combo = 0
                 continue
             if temp.next != None:
                 temp2 = temp.next
@@ -950,7 +981,7 @@ class BMS_Player:
                 x = 1200
             else:
                 continue
-
+            
             if position == position2:
                 pygame.draw.line(screen, color, [x, 600 - round((position - self.position) * 600 * self.speed)],[x+40, 600 - round((position - self.position) * 600 * self.speed)], 4)
             else:
@@ -958,10 +989,134 @@ class BMS_Player:
                     pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - self.position) * 600 * self.speed)])
                 else:
                     pygame.draw.rect(screen, color, [x, 600 - round((position2 - self.position) * 600 * self.speed), 40, round((position2 - position) * 600 * self.speed)])
+        pygame.draw.rect(screen, BLACK, [0, 601, 1280, 119])
         pygame.display.flip()
         return
 
-    def Process_Input(self):
+    keyEffect = [0, 0, 0, 0, 0, 0, 0, 0]
+
+    def Process_Input(self, screen):
+        t = time.time() - self.Start_time
+        index = -1
+        for k in self.keyEffect:
+            index = index + 1
+            if k == 0:
+                continue
+            s = pygame.Surface((40, 100))
+            s.set_alpha(50)
+            s.fill((255, 255, 255))
+            screen.blit(s, (index * 40, 500))
+        for event in pygame.event.get():
+            if True:
+            #if event.type == pygame.KEYDOWN:
+                pressed = pygame.key.get_pressed()
+                if pressed[pygame.K_LSHIFT]:
+                    self.keyEffect[0] = 1
+                    for note in self.Note_data:
+                        if note.channel == '16':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[0] = 0
+                if pressed[pygame.K_s]:
+                    self.keyEffect[1] = 1
+                    for note in self.Note_data:
+                        if note.channel == '11':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[1] = 0
+                if pressed[pygame.K_d]:
+                    self.keyEffect[2] = 1
+                    for note in self.Note_data:
+                        if note.channel == '12':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[2] = 0
+                if pressed[pygame.K_f]:
+                    self.keyEffect[3] = 1
+                    for note in self.Note_data:
+                        if note.channel == '13':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[3] = 0
+                if pressed[pygame.K_SPACE]:
+                    self.keyEffect[4] = 1
+                    for note in self.Note_data:
+                        if note.channel == '14':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[4] = 0
+                if pressed[pygame.K_j]:
+                    self.keyEffect[5] = 1
+                    for note in self.Note_data:
+                        if note.channel == '15':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[5] = 0
+                if pressed[pygame.K_k]:
+                    self.keyEffect[6] = 1
+                    for note in self.Note_data:
+                        if note.channel == '18':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[6] = 0
+                if pressed[pygame.K_l]:
+                    self.keyEffect[7] = 1
+                    for note in self.Note_data:
+                        if note.channel == '19':
+                            if note.timing < t + self.timing and note.timing > t - self.timing and not note.Pressed:
+                                self.Combo = self.Combo + 1
+                                note.Pressed = True
+                                if note.sound != None:
+                                    note.sound.play()
+                                self.Note_data.remove(note)
+                                break
+                else:
+                    self.keyEffect[7] = 0
+        fontObj = pygame.font.Font('font/NanumGothicCoding.ttf', 30)
+        text = fontObj.render("Combo : " + str(self.Combo), True, WHITE)
+        screen.blit(text, (150, 300))
         return
 
 def Screen_init(width, height, caption):
@@ -1010,8 +1165,10 @@ while True:
     Timer = time.time()
     Frame = float(1 / 144)
     EndTime = None
+    PPP.Start_time = time.time()
     while True:
         PPP.Move()
+        PPP.Process_Input(screen)
         if time.time() - Timer > Frame:
             Timer = time.time()
             PPP.Draw_Note(screen)
